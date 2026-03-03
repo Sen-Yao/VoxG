@@ -302,8 +302,7 @@ def node_neighborhood_feature(adj, features, k, alpha=0.1, orthogonalize=False):
         if features.device != adj.device:
             adj = adj.to(features.device)
     elif hasattr(features, 'device'):
-        # adj 是 numpy/scipy，features 是 torch
-        import torch
+        # adj 是 numpy/scipy，features 是 torch (torch 已在文件开头导入)
         if hasattr(adj, 'toarray'):
             adj = torch.from_numpy(adj.toarray()).float().to(features.device)
         else:
