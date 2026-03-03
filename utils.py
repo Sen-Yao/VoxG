@@ -616,14 +616,25 @@ def nagphormer_tokenization(features, adj, args):
     use_spse_mvp = hasattr(args, 'use_spse_mvp') and args.use_spse_mvp
     if use_spse_mvp:
         print("  🚀 SPSE MVP 模式：添加三角形计数特征")
-        spse_feat = simple_spse_feature(adj, features)
         import scipy.sparse as sp
         import numpy as np
-        if sp.issparse(features):
-            from scipy.sparse import hstack
-            features = hstack([features, spse_feat])
+        
+        # 确保 features 是 numpy 数组
+        if hasattr(features, 'cpu'):
+            features_np = features.cpu().numpy()
+        elif sp.issparse(features):
+            features_np = features.toarray()
         else:
-            features = np.hstack([features, spse_feat])
+            features_np = np.array(features)
+        
+        spse_feat = simple_spse_feature(adj, features_np)
+        enhanced_features = np.hstack([features_np, spse_feat])
+        
+        # 转回 torch tensor
+        import torch
+        features = torch.from_numpy(enhanced_features).float()
+        if hasattr(args, 'device'):
+            features = features.to(args.device)
     
     use_orthogonal = hasattr(args, "orthogonalize_tokens") and args.orthogonalize_tokens
     if use_orthogonal:
