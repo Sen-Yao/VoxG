@@ -211,7 +211,26 @@ def train(args):
                 diff_attribute = torch.pow(outlier_emb - noised_normal_for_generation_emb, 2)
                 # loss_rec = torch.mean(torch.sqrt(torch.sum(diff_attribute, 1)))
 
-                loss = dynamic_weights['bce_loss_weight'] * loss_bce + dynamic_weights['rec_loss_weight'] * loss_rec + dynamic_weights['ring_loss_weight'] * loss_ring
+                # 正交正则化损失（可选）
+                loss_orth = torch.tensor(0.0, device=device)
+                if args.lambda_orthogonal > 0 and concated_input_features.dim() == 3:
+                    # 计算跳间特征的正交正则项：sum((hop_i · hop_j)^2) for i != j
+                    # concated_input_features: [N, pp_k+1, d]
+                    batch_size, num_hops, feat_dim = concated_input_features.shape
+                    orth_losses = []
+                    for i in range(num_hops):
+                        for j in range(i + 1, num_hops):
+                            # hop_i: [N, d], hop_j: [N, d]
+                            hop_i = concated_input_features[:, i, :]
+                            hop_j = concated_input_features[:, j, :]
+                            # 余弦相似度的平方
+                            cos_sim = torch.sum(hop_i * hop_j, dim=1) / (torch.norm(hop_i, dim=1) * torch.norm(hop_j, dim=1) + 1e-8)
+                            orth_losses.append(cos_sim ** 2)
+                    if orth_losses:
+                        loss_orth = torch.mean(torch.stack(orth_losses))
+                
+                # 总损失
+                loss = dynamic_weights['bce_loss_weight'] * loss_bce + dynamic_weights['rec_loss_weight'] * loss_rec + dynamic_weights['ring_loss_weight'] * loss_ring + args.lambda_orthogonal * loss_orth
 
                 loss.backward()
                 optimizer.step()
@@ -235,11 +254,16 @@ def train(args):
             })
             pbar.update(1)
             if epoch % 2 == 0:
-                wandb.log({ "batched_total_loss": batched_total_loss.item(),
-                            "bce_loss": batched_bce_loss.item(),
-                            "rec_loss": batched_rec_loss.item(),
-                            "ring_loss": batched_ring_loss.item(),
-                            "learning_rate": current_lr}, step=epoch)
+                log_dict = {
+                    "batched_total_loss": batched_total_loss.item(),
+                    "bce_loss": batched_bce_loss.item(),
+                    "rec_loss": batched_rec_loss.item(),
+                    "ring_loss": batched_ring_loss.item(),
+                    "learning_rate": current_lr
+                }
+                if args.lambda_orthogonal > 0:
+                    log_dict["orth_loss"] = loss_orth.item()
+                wandb.log(log_dict, step=epoch)
         else:
             optimizer.zero_grad()
 
@@ -460,6 +484,8 @@ if __name__ == "__main__":
     
     # VoxG 正交化实验参数
     parser.add_argument('--orthogonalize_tokens', type=str2bool, default=False, help='[VoxG] Enable orthogonalization in tokenization (Gram-Schmidt)')
+    parser.add_argument('--orthogonal_beta', type=float, default=0.5, help='[VoxG] Soft orthogonalization strength (1.0=hard, 0.0=none)')
+    parser.add_argument('--lambda_orthogonal', type=float, default=0.0, help='[VoxG] Orthogonal regularization loss weight')
 
 
 

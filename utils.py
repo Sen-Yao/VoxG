@@ -606,13 +606,23 @@ def nagphormer_tokenization(features, adj, args):
     # 实验性功能：对所有 hop 的特征做 Gram-Schmidt 正交化
     if use_orthogonal and args.pp_k > 1:
         print(f"    对 {args.pp_k} 跳特征进行 Gram-Schmidt 正交化...")
+        # 获取软正交化参数 (beta 控制正交化强度)
+        beta = getattr(args, 'orthogonal_beta', 0.5)  # 默认 beta=0.5 (软正交化)
+        print(f"    软正交化强度 beta={beta} (1.0=硬正交化，0.0=无正交化)")
+        
         orthogonalized = []
         for i, hop_feat in enumerate(all_hops):
+            # 先做硬正交化
             orth_feat = hop_feat.clone()
             for j in range(i):
                 proj_coef = torch.sum(orth_feat * orthogonalized[j], dim=1, keepdim=True) / (torch.sum(orthogonalized[j] * orthogonalized[j], dim=1, keepdim=True) + 1e-8)
                 orth_feat = orth_feat - proj_coef * orthogonalized[j]
             orth_feat = torch.nn.functional.normalize(orth_feat, p=2, dim=1) * torch.sqrt(torch.tensor(features.shape[1], dtype=features.dtype))
+            
+            # 软正交化：保留部分原始特征
+            if beta < 1.0:
+                orth_feat = (1 - beta) * hop_feat + beta * orth_feat
+            
             orthogonalized.append(orth_feat)
         
         nodes_features = features.unsqueeze(1)
