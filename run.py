@@ -457,6 +457,9 @@ if __name__ == "__main__":
 
     # Ablation Study
     parser.add_argument('--ablation_random_dir', type=str2bool, default=False, help='Ablation study: randomize perturbation direction')
+    
+    # VoxG 正交化实验参数
+    parser.add_argument('--orthogonalize_tokens', type=str2bool, default=False, help='[VoxG] Enable orthogonalization in tokenization (Gram-Schmidt)')
 
 
 

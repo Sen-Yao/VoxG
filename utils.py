@@ -283,18 +283,46 @@ def generate_rwr_subgraph(dgl_graph, subgraph_size):
 
     return subv
 
-def node_neighborhood_feature(adj, features, k, alpha=0.1):
-
+def node_neighborhood_feature(adj, features, k, alpha=0.1, orthogonalize=False):
+    """
+    多跳邻居特征传播
+    
+    Args:
+        adj: 邻接矩阵 (N, N)
+        features: 节点特征 (N, d)
+        k: 传播跳数
+        alpha: 残差系数 (保留原始特征的比例)
+        orthogonalize: 是否对多跳特征做正交化 (实验性功能)
+    
+    Returns:
+        传播后的特征 (N, d)
+    """
     x_0 = features
+    all_hops = []  # 存储每跳的特征，用于正交化
+    
     for i in range(k):
-        # print(f"features.shape: {features.shape}, adj.shape: {adj.shape}")
         if isinstance(adj, torch.Tensor):
-            features = (1-alpha) * torch.mm(adj, features) + alpha * x_0
+            x_k = (1-alpha) * torch.mm(adj, x_0 if i == 0 else all_hops[-1]) + alpha * features
         else:
             # sparse adj, maybe DGraph
-            features = (1 - alpha) * torch.spmm(adj, features) + alpha * x_0
-
-    return features
+            x_k = (1 - alpha) * torch.spmm(adj, x_0 if i == 0 else all_hops[-1]) + alpha * features
+        
+        all_hops.append(x_k)
+    
+    # 最后一跳结果
+    result = all_hops[-1]
+    
+    # 实验性功能：Gram-Schmidt 正交化（减少多跳特征间的信息冗余）
+    if orthogonalize and k > 1:
+        # 对多跳特征做正交化，保留最后一跳的方向但去除与前 k-1 跳相关的成分
+        for i in range(len(all_hops) - 1):
+            # 计算投影：proj = (result · hop_i) / (hop_i · hop_i) * hop_i
+            proj_coef = torch.sum(result * all_hops[i], dim=1, keepdim=True) / (torch.sum(all_hops[i] * all_hops[i], dim=1, keepdim=True) + 1e-8)
+            result = result - proj_coef * all_hops[i]
+        # 归一化保持尺度
+        result = torch.nn.functional.normalize(result, p=2, dim=1) * torch.sqrt(torch.tensor(features.shape[1], dtype=features.dtype))
+    
+    return result
 
 import matplotlib.pyplot as plt
 import matplotlib
