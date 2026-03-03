@@ -228,6 +228,10 @@ def train(args):
                             orth_losses.append(cos_sim ** 2)
                     if orth_losses:
                         loss_orth = torch.mean(torch.stack(orth_losses))
+                    
+                    # 调试打印：验证正交损失非零
+                    if epoch == 0 and batch_idx == 0:
+                        print(f"  🔍 正交正则化调试：loss_orth={loss_orth.item():.6f}, lambda={args.lambda_orthogonal}, 贡献={args.lambda_orthogonal * loss_orth.item():.6f}")
                 
                 # 总损失
                 loss = dynamic_weights['bce_loss_weight'] * loss_bce + dynamic_weights['rec_loss_weight'] * loss_rec + dynamic_weights['ring_loss_weight'] * loss_ring + args.lambda_orthogonal * loss_orth
@@ -239,6 +243,8 @@ def train(args):
                 batched_ring_loss += loss_ring
 
             batched_total_loss = batched_bce_loss + batched_rec_loss + batched_ring_loss
+            # 注意：正交正则化损失已经包含在 loss 中，不需要重复加到 batched_total_loss
+            # batched_total_loss 只用于日志，不影响训练
             end_time = time.time()
             total_time += end_time - start_time
             
@@ -485,7 +491,7 @@ if __name__ == "__main__":
     # VoxG 正交化实验参数
     parser.add_argument('--orthogonalize_tokens', type=str2bool, default=False, help='[VoxG] Enable orthogonalization in tokenization (Gram-Schmidt)')
     parser.add_argument('--orthogonal_beta', type=float, default=0.5, help='[VoxG] Soft orthogonalization strength (1.0=hard, 0.0=none)')
-    parser.add_argument('--lambda_orthogonal', type=float, default=0.0, help='[VoxG] Orthogonal regularization loss weight')
+    parser.add_argument('--lambda_orthogonal', type=float, default=0.0, help='[VoxG] Orthogonal regularization loss weight (建议：1.0-10.0)')
 
 
 
