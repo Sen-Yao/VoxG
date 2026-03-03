@@ -202,7 +202,8 @@ class GGADFormer(nn.Module):
         self.final_ln = nn.LayerNorm(args.embedding_dim)
         self.read_out = nn.Linear(args.embedding_dim, args.embedding_dim)
 
-        self.token_projection = nn.Linear(self.n_in, args.embedding_dim)
+        # 自适应输入维度（支持 SPSE MVP 添加额外特征）
+        self.token_projection = None  # 延迟初始化
 
         self.token_decoder = nn.Sequential(
             nn.Linear(args.embedding_dim, args.embedding_dim),
@@ -230,6 +231,10 @@ class GGADFormer(nn.Module):
         Outputs:
             - emb: 输入节点的编码结果，形状 [1, batch_size, embedding_dim]
         """
+        # 延迟初始化 token_projection（支持 SPSE MVP 添加额外特征）
+        if self.token_projection is None:
+            input_dim = tokens.shape[-1]
+            self.token_projection = nn.Linear(input_dim, self.args.embedding_dim).to(tokens.device)
         emb = self.token_projection(tokens)
         for i, l in enumerate(self.layers):
             emb, current_attention_weights = self.layers[i](emb)
