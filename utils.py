@@ -591,11 +591,11 @@ def simple_spse_feature(adj, features):
     
     print("  🔺 计算 SPSE 特征（三角形计数）...")
     if sp.issparse(adj):
-        G = nx.from_scipy_sparse_matrix(adj)
+        G = nx.from_scipy_sparse_array(adj)
     else:
-        G = nx.from_numpy_array(adj)
+        G = nx.from_numpy_array(np.array(adj))
     triangles = nx.triangles(G)
-    spse_feat = np.array([triangles[i] for i in range(len(triangles))]).reshape(-1, 1)
+    spse_feat = np.array([float(triangles[i]) for i in range(len(triangles))]).reshape(-1, 1)
     spse_feat = (spse_feat - spse_feat.mean()) / (spse_feat.std() + 1e-8)
     print(f"    SPSE 特征形状：{spse_feat.shape}")
     return spse_feat
