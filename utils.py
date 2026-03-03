@@ -297,6 +297,18 @@ def node_neighborhood_feature(adj, features, k, alpha=0.1, orthogonalize=False):
     Returns:
         传播后的特征 (N, d)
     """
+    # 确保 adj 和 features 在同一设备上
+    if hasattr(features, 'device') and hasattr(adj, 'device'):
+        if features.device != adj.device:
+            adj = adj.to(features.device)
+    elif hasattr(features, 'device'):
+        # adj 是 numpy/scipy，features 是 torch
+        import torch
+        if hasattr(adj, 'toarray'):
+            adj = torch.from_numpy(adj.toarray()).float().to(features.device)
+        else:
+            adj = torch.from_numpy(adj).float().to(features.device)
+    
     x_0 = features
     all_hops = []  # 存储每跳的特征，用于正交化
     
