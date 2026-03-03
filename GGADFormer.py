@@ -205,11 +205,8 @@ class GGADFormer(nn.Module):
         # 自适应输入维度（支持 SPSE MVP 添加额外特征）
         self.token_projection = None  # 延迟初始化
 
-        self.token_decoder = nn.Sequential(
-            nn.Linear(args.embedding_dim, args.embedding_dim),
-            nn.ReLU(),
-            nn.Linear(args.embedding_dim, (args.pp_k+1) * self.n_in)
-        )
+        # 延迟初始化 token_decoder（支持 SPSE MVP 动态维度）
+        self.token_decoder = None
 
         # 重构损失函数
         self.recon_loss_fn = nn.MSELoss()
@@ -287,7 +284,15 @@ class GGADFormer(nn.Module):
             # print(f"time for noise:{time.time() - start_time}")
 
             # 重构学习
-            reconstructed_tokens = self.token_decoder(emb).squeeze(0)  # [num_nodes, (args.pp_k+1)*n_in]
+            # 延迟初始化 token_decoder（支持 SPSE MVP 动态维度）
+            if self.token_decoder is None:
+                actual_input_dim = input_tokens.shape[-1]
+                self.token_decoder = nn.Sequential(
+                    nn.Linear(args.embedding_dim, args.embedding_dim),
+                    nn.ReLU(),
+                    nn.Linear(args.embedding_dim, (args.pp_k+1) * actual_input_dim)
+                ).to(emb.device)
+            reconstructed_tokens = self.token_decoder(emb).squeeze(0)
             # 动态获取输入维度（支持 SPSE MVP）
             actual_input_dim = input_tokens.shape[-1]
             reconstruction_error = reconstructed_tokens - input_tokens.view(-1, (args.pp_k+1) * actual_input_dim)
