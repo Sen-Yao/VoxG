@@ -632,8 +632,9 @@ def nagphormer_tokenization(features, adj, args):
         
         # 转回 torch tensor (torch 已在文件开头导入)
         features = torch.from_numpy(enhanced_features).float()
-        if hasattr(args, 'device'):
-            features = features.to(args.device)
+        # 确保在正确的设备上
+        if hasattr(args, 'device') and args.device >= 0:
+            features = features.to(f'cuda:{args.device}')
     
     use_orthogonal = hasattr(args, "orthogonalize_tokens") and args.orthogonalize_tokens
     if use_orthogonal:
