@@ -127,7 +127,7 @@ def load_mat(dataset, train_rate=0.3, val_rate=0.1, args=None):
     print('Test', Counter(np.squeeze(ano_labels[idx_test])))
     # Sample some labeled normal nodes
     all_normal_label_idx = [i for i in idx_train if ano_labels[i] == 0]
-    rate = 1  #  change train_rate to 0.3 0.5 0.6  0.8
+    rate = train_rate  # 修复：使用 train_rate to 0.3 0.5 0.6  0.8
     # normal_for_train_idx 为用于训练的正常的节点索引
     normal_for_train_idx = all_normal_label_idx[: int(len(all_normal_label_idx) * rate)]
     print('Training rate', rate)
@@ -250,7 +250,7 @@ def load_dgraph(prefix='./dataset/', train_rate=0.3, val_rate=0.1, args=None):
     print('Test', Counter(np.squeeze(ano_labels[idx_test])))
     # Sample some labeled normal nodes
     all_normal_label_idx = [i for i in idx_train if ano_labels[i] == 0]
-    rate = 1  #  change train_rate to 0.3 0.5 0.6  0.8
+    rate = train_rate  # 修复：使用 train_rate to 0.3 0.5 0.6  0.8
     # normal_for_train_idx 为用于训练的正常的节点索引
     normal_for_train_idx = all_normal_label_idx[: int(len(all_normal_label_idx) * rate)]
     print('Training rate', rate)
