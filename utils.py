@@ -581,6 +581,26 @@ def preprocess_sample_features(args, features, adj):
     # return (N, sample_num_p+1 + args.sample_num_n+1, d)
     return processed_features
 
+def simple_spse_feature(adj, features):
+    """
+    SPSE MVP: 只计算三角形数量作为结构特征（最简近似）
+    """
+    import networkx as nx
+    import scipy.sparse as sp
+    import numpy as np
+    
+    print("  🔺 计算 SPSE 特征（三角形计数）...")
+    if sp.issparse(adj):
+        G = nx.from_scipy_sparse_matrix(adj)
+    else:
+        G = nx.from_numpy_array(adj)
+    triangles = nx.triangles(G)
+    spse_feat = np.array([triangles[i] for i in range(len(triangles))]).reshape(-1, 1)
+    spse_feat = (spse_feat - spse_feat.mean()) / (spse_feat.std() + 1e-8)
+    print(f"    SPSE 特征形状：{spse_feat.shape}")
+    return spse_feat
+
+
 def nagphormer_tokenization(features, adj, args):
     """
     基于 Nagphormer 的 tokenization 方法，准备预处理特征矩阵
@@ -591,6 +611,20 @@ def nagphormer_tokenization(features, adj, args):
         features: 预处理后的特征矩阵，size = (N, args.pp_k+1, d)
     """
     print("Tokenizating")
+    
+    # SPSE MVP: 添加三角形计数特征
+    use_spse_mvp = hasattr(args, 'use_spse_mvp') and args.use_spse_mvp
+    if use_spse_mvp:
+        print("  🚀 SPSE MVP 模式：添加三角形计数特征")
+        spse_feat = simple_spse_feature(adj, features)
+        import scipy.sparse as sp
+        import numpy as np
+        if sp.issparse(features):
+            from scipy.sparse import hstack
+            features = hstack([features, spse_feat])
+        else:
+            features = np.hstack([features, spse_feat])
+    
     use_orthogonal = hasattr(args, "orthogonalize_tokens") and args.orthogonalize_tokens
     if use_orthogonal:
         print("  🔄 启用正交化 tokenization (Gram-Schmidt)")

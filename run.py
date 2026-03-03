@@ -492,6 +492,9 @@ if __name__ == "__main__":
     parser.add_argument('--orthogonalize_tokens', type=str2bool, default=False, help='[VoxG] Enable orthogonalization in tokenization (Gram-Schmidt)')
     parser.add_argument('--orthogonal_beta', type=float, default=0.5, help='[VoxG] Soft orthogonalization strength (1.0=hard, 0.0=none)')
     parser.add_argument('--lambda_orthogonal', type=float, default=0.0, help='[VoxG] Orthogonal regularization loss weight (建议：1.0-10.0)')
+    
+    # VoxG SPSE MVP 参数
+    parser.add_argument('--use_spse_mvp', type=str2bool, default=False, help='[VoxG MVP] Enable SPSE triangle counting (fast validation)')
 
 
 
