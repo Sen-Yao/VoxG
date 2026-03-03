@@ -583,18 +583,42 @@ def preprocess_sample_features(args, features, adj):
 
 def nagphormer_tokenization(features, adj, args):
     """
-    基于Nagphormer的tokenization方法，准备预处理特征矩阵
+    基于 Nagphormer 的 tokenization 方法，准备预处理特征矩阵
     Args:
-        features: 特征矩阵, size = (N, d)
-        adj: 邻接矩阵, size = (N, N)
+        features: 特征矩阵，size = (N, d)
+        adj: 邻接矩阵，size = (N, N)
     Returns:
-        features: 预处理后的特征矩阵, size = (N, args.pp_k+1, d)
+        features: 预处理后的特征矩阵，size = (N, args.pp_k+1, d)
     """
     print("Tokenizating")
+    use_orthogonal = hasattr(args, "orthogonalize_tokens") and args.orthogonalize_tokens
+    if use_orthogonal:
+        print("  🔄 启用正交化 tokenization (Gram-Schmidt)")
+    
     nodes_features = features.unsqueeze(1)
+    all_hops = []  # 收集所有 hop 的特征用于正交化
+    
     for hop in range(args.pp_k):
         steped_nodes_features = node_neighborhood_feature(adj, features, hop+1, args.progregate_alpha)
+        all_hops.append(steped_nodes_features)
         nodes_features = torch.concat((nodes_features, steped_nodes_features.unsqueeze(1)), dim=1)
+    
+    # 实验性功能：对所有 hop 的特征做 Gram-Schmidt 正交化
+    if use_orthogonal and args.pp_k > 1:
+        print(f"    对 {args.pp_k} 跳特征进行 Gram-Schmidt 正交化...")
+        orthogonalized = []
+        for i, hop_feat in enumerate(all_hops):
+            orth_feat = hop_feat.clone()
+            for j in range(i):
+                proj_coef = torch.sum(orth_feat * orthogonalized[j], dim=1, keepdim=True) / (torch.sum(orthogonalized[j] * orthogonalized[j], dim=1, keepdim=True) + 1e-8)
+                orth_feat = orth_feat - proj_coef * orthogonalized[j]
+            orth_feat = torch.nn.functional.normalize(orth_feat, p=2, dim=1) * torch.sqrt(torch.tensor(features.shape[1], dtype=features.dtype))
+            orthogonalized.append(orth_feat)
+        
+        nodes_features = features.unsqueeze(1)
+        for orth_feat in orthogonalized:
+            nodes_features = torch.concat((nodes_features, orth_feat.unsqueeze(1)), dim=1)
+    
     return nodes_features
 
 class PolynomialDecayLR(_LRScheduler):
