@@ -212,11 +212,8 @@ class GGADFormer(nn.Module):
         self.recon_loss_fn = nn.MSELoss()
 
         # 投影层：将重构误差从2*n_in维度投影到embedding_dim维度
-        self.reconstruction_proj = nn.Sequential(
-            nn.Linear((args.pp_k+1) * n_in, args.embedding_dim),
-            nn.ReLU(),
-            nn.Linear(args.embedding_dim, args.embedding_dim)
-        )
+        # 延迟初始化 reconstruction_proj（支持 SPSE MVP 动态维度）
+        self.reconstruction_proj = None
 
         # 将模型移动到指定设备
         self.to(self.device)
@@ -297,6 +294,14 @@ class GGADFormer(nn.Module):
             actual_input_dim = input_tokens.shape[-1]
             reconstruction_error = reconstructed_tokens - input_tokens.view(-1, (args.pp_k+1) * actual_input_dim)
             # Project reconstruction error to embedding dimension
+            # 延迟初始化 reconstruction_proj（支持 SPSE MVP 动态维度）
+            if self.reconstruction_proj is None:
+                actual_input_dim = input_tokens.shape[-1]
+                self.reconstruction_proj = nn.Sequential(
+                    nn.Linear((args.pp_k+1) * actual_input_dim, args.embedding_dim),
+                    nn.ReLU(),
+                    nn.Linear(args.embedding_dim, args.embedding_dim)
+                ).to(emb.device)
             reconstruction_error_proj = self.reconstruction_proj(reconstruction_error[normal_for_generation_idx, :])
 
             # Ablation study:
