@@ -618,7 +618,6 @@ def nagphormer_tokenization(features, adj, args):
         print("  🚀 SPSE MVP 模式：添加三角形计数特征")
         import scipy.sparse as sp
         import numpy as np
-        import torch
         
         # 确保 features 是 numpy 数组
         if hasattr(features, 'cpu'):
@@ -631,7 +630,7 @@ def nagphormer_tokenization(features, adj, args):
         spse_feat = simple_spse_feature(adj, features_np)
         enhanced_features = np.hstack([features_np, spse_feat])
         
-        # 转回 torch tensor
+        # 转回 torch tensor (torch 已在文件开头导入)
         features = torch.from_numpy(enhanced_features).float()
         if hasattr(args, 'device'):
             features = features.to(args.device)
