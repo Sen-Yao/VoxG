@@ -476,7 +476,7 @@ if __name__ == "__main__":
     run = wandb.init(
         entity="HCCS",
         # Set the wandb project where this run will be logged.
-        project="GGADFormer",
+        project="VoxG",
         # Track hyperparameters and run metadata.
         config=args,
     )
