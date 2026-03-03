@@ -627,7 +627,15 @@ def nagphormer_tokenization(features, adj, args):
         else:
             features_np = np.array(features)
         
-        spse_feat = simple_spse_feature(adj, features_np)
+        # adj 也需要是 numpy 用于 networkx
+        if hasattr(adj, 'cpu'):
+            adj_np = adj.cpu().numpy()
+        elif sp.issparse(adj):
+            adj_np = adj.toarray()
+        else:
+            adj_np = np.array(adj)
+        
+        spse_feat = simple_spse_feature(adj_np, features_np)
         enhanced_features = np.hstack([features_np, spse_feat])
         
         # 转回 torch tensor (torch 已在文件开头导入)
