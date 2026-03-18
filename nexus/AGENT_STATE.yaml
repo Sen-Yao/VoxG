@@ -1,0 +1,45 @@
+# Nexus Agent State - VoxG Project
+# Last updated: 2026-03-19 04:55 CST
+
+agent:
+  name: Nexus
+  role: "VoxG 项目 24h 科研代理"
+  created: 2026-03-19T00:25:00+08:00
+
+project:
+  name: VoxG
+  description: "基于图 Transformer 的半监督图异常检测"
+  path_local: /home/openclawvm/VoxG
+  path_remote: HCCS86:/root/gpufree-data/linziyao/VoxG
+
+status:
+  phase: "代码调试阶段"
+  progress: 30%
+  checkpoint: 2026-03-19T04:55:00+08:00
+
+current_task:
+  id: debug-001
+  description: "验证 attention scale 问题"
+  started: 2026-03-19T04:30:00+08:00
+  completed: 2026-03-19T04:55:00+08:00
+
+next_step:
+  action: "延长训练验证修复效果，或恢复原代码继续调研"
+  details: |
+    选项 A: 延长 epoch 到 100+ 验证修复效果
+    选项 B: 恢复原代码 (scale=1)，认为是设计选择
+    选项 C: 深入分析其他性能瓶颈
+  waiting_for: user_feedback
+
+history:
+  - timestamp: 2026-03-19T04:55:00+08:00
+    action: "修复 attention scale 问题"
+    result: "已修改 GGADFormer.py，初步实验无明显改善"
+  - timestamp: 2026-03-19T04:30:00+08:00
+    action: "阅读 GGADFormer.py"
+    result: "完成核心代码理解，发现潜在 scale 问题"
+
+errors: []
+lessons:
+  - "GGAD 模型使用 GCN，不受 attention scale 影响"
+  - "GGADFormer 使用 MultiHeadAttention，scale 修复后需更多实验验证"

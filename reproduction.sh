@@ -232,6 +232,33 @@ run_elliptic() {
 # ============================================
 # 主函数 - 根据参数运行指定数据集
 # ============================================
+# ============================================
+# Questions 数据集 - 目标 AUC: 0.5842
+# ============================================
+run_questions() {
+    echo "=========================================="
+    echo "📊 运行 Questions 数据集 (目标 AUC: 0.5842)"
+    echo "=========================================="
+    python run.py \
+        --batch_size=1024 \
+        --dataset=questions \
+        --end_lr=0.0001 \
+        --lambda_rec_emb=0.5 \
+        --num_epoch=70 \
+        --outlier_beta=0.3 \
+        --peak_lr=0.0001 \
+        --pp_k=3 \
+        --progregate_alpha=0.3 \
+        --rec_loss_weight=0.1 \
+        --ring_R_max=0.5 \
+        --ring_R_min=0.5 \
+        --ring_loss_weight=20 \
+        --seed=0 \
+        --train_rate=0.05 \
+        --warmup_updates=50 \
+        --model_type=GGADFormer
+}
+
 case "${1:-all}" in
     amazon)
         run_amazon
@@ -250,6 +277,9 @@ case "${1:-all}" in
         ;;
     tolokers)
         run_tolokers
+        ;;
+    questions)
+        run_questions
         ;;
     all)
         echo "⚠️  运行所有 6 个核心数据集（可能需要数小时）"
