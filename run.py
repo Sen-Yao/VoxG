@@ -521,6 +521,10 @@ if __name__ == "__main__":
     # VoxG SPSE MVP 参数
     parser.add_argument('--use_spse_mvp', type=str2bool, default=False, help='[VoxG MVP] Enable SPSE triangle counting (fast validation)')
     parser.add_argument('--use_sparse_attention', type=str2bool, default=False, help='Use Exphormer-style sparse attention')
+    
+    # 位置编码参数
+    parser.add_argument('--use_cosine_pe', type=str2bool, default=True, help='[VoxG] Use Cosine Position Encoding')
+    parser.add_argument('--pe_type', type=str, default='cosine', choices=['cosine', 'learnable'], help='[VoxG] Position encoding type')
 
 
 

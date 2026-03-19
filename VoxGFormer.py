@@ -249,6 +249,28 @@ class VoxGFormer(nn.Module):
         else:
             self.contrastive_loss_fn = None
     
+
+    def _get_cosine_pe(self, seq_len, embed_dim, device):
+        """
+        生成 Cosine 位置编码 (TransGAD 风格)
+        Args:
+            seq_len: 序列长度 (pp_k + 1)
+            embed_dim: 嵌入维度
+            device: 设备
+        Returns:
+            pe: 位置编码 [seq_len, embed_dim]
+        """
+        import math
+        position = torch.arange(seq_len, device=device).unsqueeze(1).float()
+        div_term = torch.exp(torch.arange(0, embed_dim, 2, device=device).float() * 
+                            (-math.log(10000.0) / embed_dim))
+        
+        pe = torch.zeros(seq_len, embed_dim, device=device)
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        
+        return pe
+
     def TransformerEncoder(self, tokens):
         """
         Inputs:
@@ -257,6 +279,12 @@ class VoxGFormer(nn.Module):
             - emb: 输入节点的编码结果，形状 [1, batch_size, embedding_dim]
         """
         emb = self.token_projection(tokens)
+        
+        # 添加 Cosine 位置编码
+        if getattr(self.args, 'use_cosine_pe', True):
+            seq_len = emb.size(1)
+            pe = self._get_cosine_pe(seq_len, emb.size(-1), emb.device)
+            emb = emb + pe.unsqueeze(0)  # 广播到 batch 维度
         for i, l in enumerate(self.layers):
             emb, current_attention_weights = self.layers[i](emb)
             if i == len(self.layers) - 1: # 拿到最后一层的注意力
