@@ -6,6 +6,14 @@ import time
 
 from check_gpu_memory import print_gpu_memory_usage, print_tensor_memory, clear_gpu_memory
 
+# Import sparse attention modules
+from sparse_attention import (
+    LocalAttention, 
+    GlobalAttention, 
+    ExpanderAttention, 
+    SparseMultiHeadAttention
+)
+
 class FeedForwardNetwork(nn.Module):
     def __init__(self, hidden_size, ffn_size, dropout_rate):
         super(FeedForwardNetwork, self).__init__()
@@ -20,7 +28,9 @@ class FeedForwardNetwork(nn.Module):
         x = self.layer2(x)
         return x
 
+
 class MultiHeadAttention(nn.Module):
+    """Original full attention implementation"""
     def __init__(self, hidden_size, attention_dropout_rate, num_heads):
         super(MultiHeadAttention, self).__init__()
 
@@ -36,7 +46,13 @@ class MultiHeadAttention(nn.Module):
 
         self.output_layer = nn.Linear(num_heads * att_size, hidden_size)
 
-    def forward(self, q, k, v, attn_bias=None):
+    def forward(self, q, k, v, attn_bias=None, adj=None):
+        """
+        Args:
+            q, k, v: query, key, value tensors
+            attn_bias: optional attention bias
+            adj: adjacency matrix (ignored in full attention, kept for API compatibility)
+        """
         orig_q_size = q.size()
 
         d_k = self.att_size
@@ -59,7 +75,6 @@ class MultiHeadAttention(nn.Module):
         if attn_bias is not None:
             x = x + attn_bias
 
-
         # 这里的 x 就是经过 softmax 归一化的注意力权重
         attention_weights = torch.softmax(x, dim=3)
 
@@ -77,13 +92,50 @@ class MultiHeadAttention(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    def __init__(self, hidden_size, ffn_size, dropout_rate, attention_dropout_rate, num_heads):
+    """
+    Encoder layer with optional sparse attention support
+    
+    Args:
+        hidden_size: hidden dimension
+        ffn_size: feed-forward network dimension
+        dropout_rate: dropout rate
+        attention_dropout_rate: attention dropout rate
+        num_heads: number of attention heads
+        use_sparse_attention: whether to use sparse attention (default: False)
+        sparse_attention_config: dict with sparse attention config:
+            - k_hop: number of hops for local attention (default: 1)
+            - num_global_nodes: number of global nodes (default: 16)
+            - expansion_degree: degree for expander graph (default: 3)
+            - use_local: use local attention (default: True)
+            - use_global: use global attention (default: True)
+            - use_expander: use expander attention (default: True)
+    """
+    def __init__(self, hidden_size, ffn_size, dropout_rate, attention_dropout_rate, num_heads,
+                 use_sparse_attention=False, sparse_attention_config=None):
         super(EncoderLayer, self).__init__()
-
+        
+        self.use_sparse_attention = use_sparse_attention
         self.self_attention_norm = nn.LayerNorm(hidden_size)
-
-        self.self_attention = MultiHeadAttention(
-            hidden_size, attention_dropout_rate, num_heads)
+        
+        if use_sparse_attention:
+            # Use sparse attention (Exphormer-style)
+            config = sparse_attention_config or {}
+            self.self_attention = SparseMultiHeadAttention(
+                hidden_size=hidden_size,
+                attention_dropout_rate=attention_dropout_rate,
+                num_heads=num_heads,
+                use_local=config.get('use_local', True),
+                use_global=config.get('use_global', True),
+                use_expander=config.get('use_expander', True),
+                k_hop=config.get('k_hop', 1),
+                num_global_nodes=config.get('num_global_nodes', 16),
+                expansion_degree=config.get('expansion_degree', 3)
+            )
+        else:
+            # Use original full attention
+            self.self_attention = MultiHeadAttention(
+                hidden_size, attention_dropout_rate, num_heads
+            )
 
         self.self_attention_dropout = nn.Dropout(dropout_rate)
 
@@ -91,15 +143,11 @@ class EncoderLayer(nn.Module):
         self.ffn = FeedForwardNetwork(hidden_size, ffn_size, dropout_rate)
         self.ffn_dropout = nn.Dropout(dropout_rate)
 
-
-    def forward(self, x, attn_bias=None):
-
-
+    def forward(self, x, attn_bias=None, adj=None):
         y = self.self_attention_norm(x)
-        y, attention_weights = self.self_attention(y, y, y, attn_bias)
+        y, attention_weights = self.self_attention(y, y, y, attn_bias=attn_bias, adj=adj)
         y = self.self_attention_dropout(y)
         x = x + y
-        ## 实现的是transformer 和 FFN的LayerNorm 以及相关操作
         
         y = self.ffn_norm(x)
         y = self.ffn(y)
@@ -107,6 +155,7 @@ class EncoderLayer(nn.Module):
         x = x + y
 
         return x, attention_weights
+
 
 class GCN(nn.Module):
     def __init__(self, in_ft, out_ft, act, bias=True):
@@ -172,8 +221,14 @@ class Discriminator(nn.Module):
         return logits
 
 
-
 class VoxGFormer(nn.Module):
+    """
+    VoxGFormer with optional Exphormer-style sparse attention
+    
+    Args:
+        use_sparse_attention: whether to use sparse attention (default: False)
+        sparse_attention_config: dict with sparse attention config
+    """
     def __init__(self, n_in, n_h, activation, args):
         super(VoxGFormer, self).__init__()
 
@@ -183,6 +238,10 @@ class VoxGFormer(nn.Module):
 
         # 设置批次大小
         self.batchsize = getattr(args, 'batchsize', None)
+        
+        # Sparse attention configuration
+        self.use_sparse_attention = getattr(args, 'use_sparse_attention', False)
+        self.sparse_attention_config = getattr(args, 'sparse_attention_config', {})
         
         self.gcn1 = GCN(args.embedding_dim, args.embedding_dim, activation)
         self.gcn2 = GCN(args.embedding_dim, args.embedding_dim, activation)
@@ -195,9 +254,18 @@ class VoxGFormer(nn.Module):
 
         self.n_in = n_in
 
-        # Graph Transformer
-        encoders = [EncoderLayer(args.embedding_dim, args.GT_ffn_dim, args.GT_dropout, args.GT_attention_dropout, args.GT_num_heads)
-                    for _ in range(args.GT_num_layers)]
+        # Graph Transformer with optional sparse attention
+        encoders = []
+        for _ in range(args.GT_num_layers):
+            encoders.append(EncoderLayer(
+                args.embedding_dim, 
+                args.GT_ffn_dim, 
+                args.GT_dropout, 
+                args.GT_attention_dropout, 
+                args.GT_num_heads,
+                use_sparse_attention=self.use_sparse_attention,
+                sparse_attention_config=self.sparse_attention_config
+            ))
         self.layers = nn.ModuleList(encoders)
         self.final_ln = nn.LayerNorm(args.embedding_dim)
         self.read_out = nn.Linear(args.embedding_dim, args.embedding_dim)
@@ -223,16 +291,17 @@ class VoxGFormer(nn.Module):
         # 将模型移动到指定设备
         self.to(self.device)
     
-    def TransformerEncoder(self, tokens):
+    def TransformerEncoder(self, tokens, adj=None):
         """
         Inputs:
             - tokens: 输入节点的 tokens 序列，形状 [batch_size, pp_k+1, feature_dim]
+            - adj: 邻接矩阵 (用于稀疏注意力)
         Outputs:
             - emb: 输入节点的编码结果，形状 [1, batch_size, embedding_dim]
         """
         emb = self.token_projection(tokens)
         for i, l in enumerate(self.layers):
-            emb, current_attention_weights = self.layers[i](emb)
+            emb, current_attention_weights = self.layers[i](emb, adj=adj)
             if i == len(self.layers) - 1: # 拿到最后一层的注意力
                 attention_weights = current_attention_weights
                 # 聚合多头注意力
@@ -250,9 +319,21 @@ class VoxGFormer(nn.Module):
         return emb
 
     def forward(self, input_tokens, adj, _, normal_for_train_idx, train_flag, args, sparse=False):
-
+        """
+        Forward pass
+        
+        Args:
+            input_tokens: (N, args.pp_k+1, d)
+            adj: adjacency matrix (used for sparse attention if enabled)
+            _: unused placeholder
+            normal_for_train_idx: indices of normal training samples
+            train_flag: whether in training mode
+            args: configuration arguments
+            sparse: whether to use sparse adjacency (legacy parameter)
+        """
         # input_tokens: (N, args.pp_k+1, d)
-        emb = self.TransformerEncoder(input_tokens)
+        # Pass adjacency to TransformerEncoder for sparse attention
+        emb = self.TransformerEncoder(input_tokens, adj=adj)
 
         # 生成全局中心点
         h_mean = torch.mean(emb, dim=1, keepdim=True)
@@ -267,6 +348,7 @@ class VoxGFormer(nn.Module):
         loss_ring = torch.tensor(0.0, device=emb.device)
         con_loss = torch.tensor(0.0, device=emb.device)
         loss_rec = torch.tensor(0.0, device=emb.device)
+        
         if train_flag:
             # start_time = time.time()
             # 高效重排
@@ -316,7 +398,7 @@ class VoxGFormer(nn.Module):
             loss_ring = torch.mean(ring_out_range_loss + ring_in_range_loss)
             # 将重构后的 tokens 再编码为 embedding
             reconstructed_tokens_vector = torch.reshape(reconstructed_tokens, (-1, args.pp_k+1, self.n_in))
-            reencoded_emb = self.TransformerEncoder(reconstructed_tokens_vector)[:, normal_for_generation_idx, :].detach().squeeze(0)
+            reencoded_emb = self.TransformerEncoder(reconstructed_tokens_vector, adj=adj)[:, normal_for_generation_idx, :].detach().squeeze(0)
             loss_rec = self.compute_rec_loss(input_tokens, reconstructed_tokens, normal_for_generation_emb, reencoded_emb, normal_for_generation_idx)
 
             emb_combine = torch.cat((emb[:, normal_for_train_idx, :], torch.unsqueeze(outlier_emb, 0)), 1)

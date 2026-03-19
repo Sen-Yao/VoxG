@@ -504,6 +504,7 @@ if __name__ == "__main__":
     
     # VoxG SPSE MVP 参数
     parser.add_argument('--use_spse_mvp', type=str2bool, default=False, help='[VoxG MVP] Enable SPSE triangle counting (fast validation)')
+    parser.add_argument('--use_sparse_attention', type=str2bool, default=False, help='Use Exphormer-style sparse attention')
 
 
 
