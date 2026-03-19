@@ -1,71 +1,54 @@
 # Nexus Agent State - VoxG Project
-# Last updated: 2026-03-19 16:05 (Asia/Shanghai)
+# Last updated: 2026-03-19 17:08 (Asia/Shanghai)
 
 agent:
   name: Nexus
   role: "VoxG 项目经理"
-  created: 2026-03-19T00:25:00+08:00
-
-project:
-  name: VoxG
-  path_remote: HCCS86:/root/gpufree-data/linziyao/VoxG
   
 status:
-  phase: "创新探索期"
-  progress: 35%
-  note: "稀疏注意力实验失败，需探索新方向"
+  phase: "创新探索期 - 对比学习调优"
+  progress: 60%
+  blocked: false
+  blocked_reason: null
 
-# ========== 实验结果汇总 ==========
+achievements:
+  literature_review:
+    status: "COMPLETED"
+    papers: ["Exphormer", "SFi-Former", "TransGAD", "TSAD", "NodePiece"]
+  
+  implementations:
+    - name: "Focal Loss"
+      file: "losses/focal_loss.py"
+      status: "TESTED"
+      result: "AUC +0.5% (微弱)"
+      
+    - name: "Sparse Attention"
+      file: "sparse_attention.py"
+      status: "TESTED"
+      result: "AUC -31% (失败)"
+      
+    - name: "Contrastive Loss"
+      file: "losses/contrastive_loss.py"
+      status: "TUNING"
+      result: "调优中"
+
 experiments:
-  # ✅ 已验证失败的方向（不要重复）
-  failed:
-    focal_loss:
-      dataset: "Reddit"
-      result: "AUC +0.5%（微弱）"
-      conclusion: "类别不平衡不是主要问题"
-      
-    position_encoding:
-      datasets: ["Photo", "Reddit"]
-      results:
-        - "Cosine PE: -32.5%"
-        - "Learnable PE: -27.9%"
-      conclusion: "hop序列已隐式编码位置，显式PE引入噪声"
-      
-    sparse_attention:
-      dataset: "Photo"
-      result: "AUC 0.60 vs baseline 0.87 (-31%)"
-      config: "use_sparse_attention=True"
-      conclusion: "当前实现有害，需要重新设计"
-      
-  # ✅ 部分成功
-  partial_success:
-    feature_enhancement:
-      dataset: "Tolokers (低维)"
-      result: "AUC 0.41 → 0.58 (+41%)"
-      limitation: "仅对低维数据集有效"
+  contrastive_tuning:
+    status: "RUNNING"
+    start_time: "2026-03-19 17:06"
+    configs:
+      - gpu: 1, dataset: Photo, temp: 0.05, weight: 0.1
+      - gpu: 2, dataset: Photo, temp: 0.1, weight: 0.3
+      - gpu: 3, dataset: Photo, temp: 0.2, weight: 0.5
+      - gpu: 4, dataset: Reddit, temp: 0.05, weight: 0.1
+      - gpu: 5, dataset: Reddit, temp: 0.1, weight: 0.3
+    expected_completion: "2026-03-19 18:30"
 
-# ========== 当前运行 ==========
-running:
-  - dataset: "tolokers"
-    pid: 3822224
-    config: "contrast_weight=0.5, consistency_weight=1.0"
-    started: "16:01"
-    
-# ========== 下一步 ==========
-next_steps:
-  - action: "分析 sparse attention 失败原因"
-    priority: "HIGH"
-    
-  - action: "尝试对比学习损失（CVGAD 风格）"
-    priority: "HIGH"
-    expected_gain: "+2-5% AUC"
-    
-  - action: "提交当前进度到 Git"
-    priority: "MEDIUM"
-
-# ========== Git 状态 ==========
 git:
-  latest_commit: "9f26d23 ✨ 实现 Exphormer 风格稀疏注意力"
-  uncommitted: ["nexus/experiment_log.md"]
-  untracked: ["VoxGFormer.py.bak"]
-  ahead_of_origin: 9
+  latest: "cfbaeaa ✨ 添加 CVGAD 风格对比学习损失 (实验性)"
+  commits_today: 5
+
+recommendations:
+  - "等待对比学习调优实验完成（预计 1.5 小时）"
+  - "分析结果，选择最佳超参数配置"
+  - "如果效果不佳，探索其他创新方向"
