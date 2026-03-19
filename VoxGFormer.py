@@ -8,6 +8,7 @@ import math
 from losses.contrastive_loss import GraphContrastiveLoss
 from check_gpu_memory import print_gpu_memory_usage, print_tensor_memory, clear_gpu_memory
 from models.prompt_tuning import PromptTuning, PromptTuningConfig, freeze_non_prompt_parameters, get_prompt_parameters
+from exphormer_layer import ExphormerLayer, ExphormerEncoder
 
 
 class LoRALinear(nn.Module):
@@ -234,6 +235,46 @@ class EncoderLayer(nn.Module):
         return x, attention_weights
 
 
+
+
+class ExphormerEncoderLayer(nn.Module):
+    """
+    Exphormer-based encoder layer with O(n) sparse attention.
+    Drop-in replacement for EncoderLayer when use_exphormer=True.
+    """
+    def __init__(self, hidden_size, ffn_size, dropout_rate, attention_dropout_rate, num_heads,
+                 return_attention_weights=False, num_virtual_nodes=4, expander_degree=3):
+        super(ExphormerEncoderLayer, self).__init__()
+        
+        self.return_attention_weights = return_attention_weights
+        
+        # Exphormer sparse attention layer
+        self.exphormer = ExphormerLayer(
+            hidden_size=hidden_size,
+            ffn_size=ffn_size,
+            num_heads=num_heads,
+            num_virtual_nodes=num_virtual_nodes,
+            expander_degree=expander_degree,
+            dropout=dropout_rate,
+            attention_dropout=attention_dropout_rate,
+            use_local=False,  # No local attention for sequence data (no graph structure)
+            use_expander=True,
+            use_global=True
+        )
+    
+    def forward(self, x, attn_bias=None):
+        """
+        Args:
+            x: [batch_size, seq_len, hidden_size]
+            attn_bias: Optional attention bias (ignored for Exphormer)
+            
+        Returns:
+            x: [batch_size, seq_len, hidden_size]
+            attention_weights: None (Exphormer doesn't return full attention matrix)
+        """
+        x, attention_weights = self.exphormer(x, edge_index=None, return_attention=self.return_attention_weights)
+        return x, attention_weights
+
 class GCN(nn.Module):
     def __init__(self, in_ft, out_ft, act, bias=True):
         super(GCN, self).__init__()
@@ -357,19 +398,43 @@ class VoxGFormer(nn.Module):
 
         self.n_in = n_in
 
-        # Graph Transformer with optional LoRA
+        # Graph Transformer with optional LoRA or Exphormer
+        self.use_exphormer = getattr(args, 'use_exphormer', False)
+        self.num_virtual_nodes = getattr(args, 'exphormer_virtual_nodes', 4)
+        self.expander_degree = getattr(args, 'exphormer_degree', 3)
+        
+        if self.use_exphormer:
+            print(f"
+=== Exphormer Configuration ===")
+            print(f"  virtual_nodes: {self.num_virtual_nodes}")
+            print(f"  expander_degree: {self.expander_degree}")
+            print(f"  complexity: O(n) sparse attention")
+            print(f"===============================
+")
+        
         encoders = []
         for i in range(args.GT_num_layers):
             return_attn = (i == args.GT_num_layers - 1)
-            encoders.append(EncoderLayer(
-                args.embedding_dim, args.GT_ffn_dim, args.GT_dropout, 
-                args.GT_attention_dropout, args.GT_num_heads,
-                return_attention_weights=return_attn,
-                use_lora=self.use_lora,
-                lora_rank=self.lora_rank,
-                lora_alpha=self.lora_alpha,
-                lora_dropout=self.lora_dropout
-            ))
+            if self.use_exphormer:
+                # Use Exphormer sparse attention (O(n) complexity)
+                encoders.append(ExphormerEncoderLayer(
+                    args.embedding_dim, args.GT_ffn_dim, args.GT_dropout,
+                    args.GT_attention_dropout, args.GT_num_heads,
+                    return_attention_weights=return_attn,
+                    num_virtual_nodes=self.num_virtual_nodes,
+                    expander_degree=self.expander_degree
+                ))
+            else:
+                # Use standard attention or LoRA
+                encoders.append(EncoderLayer(
+                    args.embedding_dim, args.GT_ffn_dim, args.GT_dropout,
+                    args.GT_attention_dropout, args.GT_num_heads,
+                    return_attention_weights=return_attn,
+                    use_lora=self.use_lora,
+                    lora_rank=self.lora_rank,
+                    lora_alpha=self.lora_alpha,
+                    lora_dropout=self.lora_dropout
+                ))
         self.layers = nn.ModuleList(encoders)
         self.final_ln = nn.LayerNorm(args.embedding_dim)
         self.read_out = nn.Linear(args.embedding_dim, args.embedding_dim)

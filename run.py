@@ -618,6 +618,12 @@ if __name__ == "__main__":
     parser.add_argument('--pe_type', type=str, default='cosine', choices=['cosine', 'learnable'], help='[VoxG] Position encoding type')
 
 
+    # Exphormer sparse attention arguments
+    parser.add_argument('--use_exphormer', type=str2bool, default=False, help='Use Exphormer sparse attention')
+    parser.add_argument('--exphormer_virtual_nodes', type=int, default=4, help='Number of virtual global nodes for Exphormer')
+    parser.add_argument('--exphormer_degree', type=int, default=3, help='Expander graph degree for Exphormer')
+
+
 
     args = parser.parse_args()
 
