@@ -1,5 +1,5 @@
 # Nexus Agent State - VoxG Project
-# Last updated: 2026-03-19 14:10 (Asia/Shanghai)
+# Last updated: 2026-03-19 14:50 (Asia/Shanghai)
 
 agent:
   name: Nexus
@@ -14,8 +14,8 @@ project:
   
 status:
   phase: "创新探索期"
-  progress: 0%  # 刚开始创新阶段
-  checkpoint: 2026-03-19T14:10:00+08:00
+  progress: 30%
+  checkpoint: 2026-03-19T14:50:00+08:00
 
 # ========== 复现阶段结果（已完成） ==========
 reproduction_complete:
@@ -34,63 +34,63 @@ reproduction_complete:
 # ========== 创新探索阶段规划 ==========
 innovation_phase:
   goal: "探索新模型架构，超越 VecGAD 论文性能"
-  focus_areas:
-    - name: "Tokenization 创新"
-      priority: "HIGH"
-      ideas:
-        - "研究 NLP/CV 中成功的 tokenization 方法"
-        - "探索动态 token 长度策略"
-        - "引入位置编码增强图结构感知"
-    - name: "注意力机制创新"
-      priority: "HIGH"
-      ideas:
-        - "Sparse Attention 降低复杂度"
-        - "Graph-Structured Attention"
-        - "Cross-Attention 融合特征"
-    - name: "损失函数创新"
-      priority: "MEDIUM"
-      ideas:
-        - "对比学习损失"
-        - "焦点损失处理类别不平衡"
-        - "自监督预训练目标"
-    - name: "架构组件创新"
-      priority: "MEDIUM"
-      ideas:
-        - "残差连接优化"
-        - "Layer Scale 技术"
-        - "MoE (Mixture of Experts)"
+  
+  # 基于文献调研的优先级排序
+  implementation_priority:
+    - name: "Focal Loss"
+      priority: "🥇 最高"
+      expected_gain: "+3-8% AUROC (不平衡数据集)"
+      complexity: "极低 (10-20 行代码)"
+      status: "IN_PROGRESS"
+      
+    - name: "Exphormer 稀疏注意力"
+      priority: "🥈 高"
+      expected_gain: "+3-8% AUROC + 支持大规模图"
+      complexity: "中等 (200-400 行)"
+      status: "PENDING"
+      
+    - name: "Cosine 位置编码 (TransGAD)"
+      priority: "🥉 中"
+      expected_gain: "+2-5% AUROC"
+      complexity: "低 (50-100 行)"
+      status: "PENDING"
+      
+    - name: "对比学习损失"
+      priority: "中"
+      expected_gain: "+2-5% AUROC"
+      complexity: "中等 (150-250 行)"
+      status: "PENDING"
 
 # ========== 当前任务 ==========
 current_task:
-  id: "innovate-001"
-  description: "创新探索阶段启动 - 文献调研与方案设计"
-  started: 2026-03-19T14:10:00+08:00
+  id: "innovate-003"
+  description: "实现 Focal Loss 处理类别不平衡"
+  started: 2026-03-19T14:50:00+08:00
   
 next_steps:
   - step: 1
-    action: "文献调研子代理 - 调研图 Transformer 最新进展"
+    action: "文献调研 #1 - 图 Transformer 最新进展"
     status: "COMPLETED"
-    result: "发现 Exphormer, SFi-Former, TransGAD, TSAD 等关键论文"
+    result: "发现 Exphormer, SFi-Former, TransGAD, TSAD"
   - step: 2
-    action: "实现 Exphormer 稀疏注意力实验"
-    status: "IN_PROGRESS"
+    action: "文献调研 #2 - 详细技术调研"
+    status: "COMPLETED"
+    result: "生成 literature_review_transformer_innovations.md"
   - step: 3
-    action: "添加 Cosine 位置编码"
+    action: "实现 Focal Loss"
+    status: "IN_PROGRESS"
+    notes: "最高优先级，实现简单，预期收益高"
+  - step: 4
+    action: "在 Reddit/Elliptic 验证 Focal Loss 效果"
+    status: "PENDING"
+  - step: 5
+    action: "实现 Exphormer 稀疏注意力"
     status: "PENDING"
 
 # ========== 资源状态 ==========
 resources:
   hccs86:
     status: "ONLINE"
-    gpus:
-      - { id: 0, status: "BUSY", user: "songzijian" }
-      - { id: 1, status: "FREE" }
-      - { id: 2, status: "FREE" }
-      - { id: 3, status: "FREE" }
-      - { id: 4, status: "FREE" }
-      - { id: 5, status: "FREE" }
-      - { id: 6, status: "BUSY", user: "songzijian" }
-      - { id: 7, status: "BUSY", user: "songzijian" }
     available_gpus: [1, 2, 3, 4, 5]
 
 # ========== 经验教训 ==========
@@ -99,10 +99,13 @@ lessons:
   - "seed 敏感性：Elliptic 最佳 seed=42，Reddit 最佳 seed=789"
   - "多 GPU 并行实验效率高，可在 5 GPU 上同时运行不同配置"
   - "重构损失监控重要 - 占比异常时模型可能崩溃"
+  - "Focal Loss 对类别不平衡数据集效果显著 (参考 ICCV 2017)"
 
 # ========== 时间线 ==========
 timeline:
   - "2026-03-19 00:00: 复现阶段开始"
   - "2026-03-19 12:55: 复现阶段完成 - 7/7 数据集达标"
-  - "2026-03-19 13:26: Git commit 458664a"
   - "2026-03-19 14:10: 创新探索阶段启动"
+  - "2026-03-19 14:20: 文献调研子代理 #1 完成"
+  - "2026-03-19 14:45: 文献调研子代理 #2 完成 - 详细技术报告"
+  - "2026-03-19 14:50: 开始实现 Focal Loss"
