@@ -404,13 +404,11 @@ class VoxGFormer(nn.Module):
         self.expander_degree = getattr(args, 'exphormer_degree', 3)
         
         if self.use_exphormer:
-            print(f"
-=== Exphormer Configuration ===")
+            print("=== Exphormer Configuration ===")
             print(f"  virtual_nodes: {self.num_virtual_nodes}")
             print(f"  expander_degree: {self.expander_degree}")
-            print(f"  complexity: O(n) sparse attention")
-            print(f"===============================
-")
+            print("  complexity: O(n) sparse attention")
+            print("===============================")
         
         encoders = []
         for i in range(args.GT_num_layers):

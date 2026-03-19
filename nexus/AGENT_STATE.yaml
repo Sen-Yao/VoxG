@@ -1,78 +1,82 @@
 # Nexus Agent State - VoxG Project
-# Last updated: 2026-03-19 23:31 (Asia/Shanghai)
+# Last updated: 2026-03-20 02:05 (Asia/Shanghai)
 
 agent:
   name: Nexus
   role: "VoxG 项目经理"
   
 status:
-  phase: "创新探索期"
-  progress: 85%
-  
-# ========== Phase 1 进度 ==========
-phase1_implementations:
+  phase: "Phase 2: 实验验证期"
+  progress: 10%
+  next_step: "运行新模块实验验证"
+
+# ========== Phase 1+ 全部完成 ==========
+implementations:
   flash_attention:
     status: "✅ COMPLETED"
     commit: "79383dd"
+    benefit: "训练速度 2-4x，显存 -50%"
     
   focal_loss:
     status: "✅ COMPLETED"
-    result: "Reddit +1.3%, Elliptic +6.9%"
+    file: "losses/focal_loss.py"
+    benefit: "Reddit +1.3%, Elliptic +6.9%"
     
   curriculum_learning:
     status: "✅ COMPLETED"
     commit: "0a9fd55"
-    result: "Reddit best AUC 0.5397 vs baseline 0.5377 (+0.37%)"
+    benefit: "训练 loss -7.3%"
     
-  mfmgad:
-    status: "⚠️ PARTIAL"
-    issue: "模块已创建但未集成到 VoxGFormer.py"
+  lora:
+    status: "✅ COMPLETED"
+    commit: "40a9f8e"
+    file: "models/lora.py"
+    benefit: "可训练参数降至 1.30%"
     
   prompt_tuning:
-    status: "📋 PENDING"
+    status: "✅ COMPLETED"
+    commit: "7a1138d"
+    file: "models/prompt_tuning.py"
+    benefit: "Soft prompt 输入增强"
     
-  lora_adapter:
-    status: "📋 PENDING"
+  exphormer:
+    status: "✅ COMPLETED"
+    commit: "bfb7acd"
+    file: "exphormer_layer.py"
+    benefit: "O(n) 稀疏注意力，支持大规模图"
 
-# ========== 实验结果汇总 ==========
-experiments:
-  successful:
-    - name: "Flash Attention"
-      benefit: "训练速度 2-4x"
-    - name: "Focal Loss"
-      benefit: "Reddit +1.3%, Elliptic +6.9%"
-    - name: "课程学习"
-      benefit: "Reddit +0.37%, loss 降低 7%"
-      
-  not_effective:
-    - name: "MFMGAD"
-      result: "Reddit 0.55 vs baseline 0.55 (无显著差异)"
-      note: "且存在集成问题"
-      
-  pending:
-    - name: "Prompt Tuning"
-    - name: "LoRA/Adapter"
+# ========== Phase 2: 实验验证 ==========
+phase2_plan:
+  step_1:
+    task: "验证 LoRA/Prompt Tuning 效果"
+    method: "对比 baseline vs LoRA vs Prompt Tuning"
+    datasets: "[Reddit, Tolokers]"
+    gpu: "GPU 1-2"
+    status: "PENDING"
+    
+  step_2:
+    task: "验证 Exphormer 效果"
+    method: "对比标准 attention vs Exphormer"
+    datasets: "[Reddit]"
+    gpu: "GPU 3"
+    status: "PENDING"
+    
+  step_3:
+    task: "组合实验：最佳配置"
+    method: "组合多个有效模块"
+    datasets: "[全部 7 个数据集]"
+    gpu: "GPU 4-5"
+    status: "PENDING"
 
 # ========== Git 状态 ==========
 git:
-  latest: "0a9fd55"
-  branch: "main"
-  ahead_of_origin: 17 commits
-  uncommitted:
-    - "nexus/experiment_log.md"
-    - "train_*.log files"
+  latest: "bfb7acd"
+  commits_today: 14
+  last_commit_msg: "✨ 实现 Exphormer 稀疏注意力 (O(n) 复杂度)"
 
-# ========== 服务器状态 ==========
-server:
-  name: "HCCS86"
-  user: "linziyao"
-  project_path: "/home/linziyao/VoxG"
-  gpu_available: [1, 2, 3, 4, 5]  # GPU 0,6,7 被占用
-
-# ========== 下一步 ==========
-next_steps:
-  - action: "决定 MFMGAD 或 Prompt Tuning/LoRA"
-    priority: "HIGH"
-    requires_user_input: true
-  - action: "Git push (17 commits ahead)"
-    priority: "MEDIUM"
+# ========== 今日总结 (2026-03-19) ==========
+daily_summary:
+  commits: 14
+  new_code_lines: ~2700
+  technologies_implemented: 6
+  duration: "约 16 小时"
