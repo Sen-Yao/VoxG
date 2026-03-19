@@ -63,7 +63,7 @@ def dense_to_one_hot(labels_dense, num_classes):
     return labels_one_hot
 
 
-def load_mat_GGAD(dataset, train_rate=0.3, val_rate=0.1):
+def load_mat_VoxG(dataset, train_rate=0.3, val_rate=0.1):
 
     """Load .mat dataset."""
     data = sio.loadmat("./dataset/{}.mat".format(dataset))

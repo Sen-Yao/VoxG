@@ -39,7 +39,7 @@ fig, ax = plt.subplots(figsize=(5.5, 3.5))
 ax.set_box_aspect(0.6)
 ax.plot(range(len(train_ratios)), auroc_ggad, 
          color=colors[0], marker=markers[0], 
-         linestyle=linestyles[0], label='GGAD',
+         linestyle=linestyles[0], label='VoxG',
          markeredgecolor='white', markeredgewidth=1.5)
 ax.plot(range(len(train_ratios)), auroc_rho, 
          color=colors[1], marker=markers[1], 

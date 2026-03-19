@@ -36,7 +36,7 @@ run_amazon_baseline() {
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer \
+        --model_type=VoxGFormer \
         --orthogonalize_tokens=False
 }
 
@@ -63,7 +63,7 @@ run_amazon_orthogonal() {
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer \
+        --model_type=VoxGFormer \
         --orthogonalize_tokens=True
 }
 

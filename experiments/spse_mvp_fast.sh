@@ -26,7 +26,7 @@ python3 run.py \
     --pp_k=3 --progregate_alpha=0.3 --rec_loss_weight=1 \
     --ring_R_max=1 --ring_R_min=0.3 --ring_loss_weight=1 \
     --seed=0 --train_rate=0.05 --warmup_updates=50 \
-    --model_type=GGADFormer \
+    --model_type=VoxGFormer \
     --use_spse_mvp=False \
     2>&1 | tee logs/spse_mvp_baseline.log | grep -E 'AUC|AP|Best'
 
@@ -42,7 +42,7 @@ python3 run.py \
     --pp_k=3 --progregate_alpha=0.3 --rec_loss_weight=1 \
     --ring_R_max=1 --ring_R_min=0.3 --ring_loss_weight=1 \
     --seed=0 --train_rate=0.05 --warmup_updates=50 \
-    --model_type=GGADFormer \
+    --model_type=VoxGFormer \
     --use_spse_mvp=True \
     2>&1 | tee logs/spse_mvp_enabled.log | grep -E 'AUC|AP|Best'
 

@@ -35,7 +35,7 @@ run_baseline() {
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer \
+        --model_type=VoxGFormer \
         --orthogonalize_tokens=False
 }
 
@@ -62,7 +62,7 @@ run_soft_orth_beta50() {
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer \
+        --model_type=VoxGFormer \
         --orthogonalize_tokens=True \
         --orthogonal_beta=0.5
 }
@@ -90,7 +90,7 @@ run_soft_orth_beta30() {
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer \
+        --model_type=VoxGFormer \
         --orthogonalize_tokens=True \
         --orthogonal_beta=0.3
 }
@@ -118,7 +118,7 @@ run_orth_reg_001() {
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer \
+        --model_type=VoxGFormer \
         --orthogonalize_tokens=False \
         --lambda_orthogonal=0.01
 }
@@ -146,7 +146,7 @@ run_orth_reg_01() {
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer \
+        --model_type=VoxGFormer \
         --orthogonalize_tokens=False \
         --lambda_orthogonal=0.1
 }
@@ -174,7 +174,7 @@ run_combined() {
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer \
+        --model_type=VoxGFormer \
         --orthogonalize_tokens=True \
         --orthogonal_beta=0.3 \
         --lambda_orthogonal=0.01

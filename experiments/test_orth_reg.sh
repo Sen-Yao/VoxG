@@ -16,7 +16,7 @@ CUDA_VISIBLE_DEVICES=7 python run.py \
     --pp_k=5 --progregate_alpha=0.4 --rec_loss_weight=1 \
     --ring_R_max=1 --ring_R_min=0.3 --ring_loss_weight=1 \
     --seed=0 --train_rate=0.05 --warmup_updates=50 \
-    --model_type=GGADFormer --orthogonalize_tokens=False \
+    --model_type=VoxGFormer --orthogonalize_tokens=False \
     --lambda_orthogonal=1.0 \
     2>&1 | tee logs/test_orth_lambda1.log | grep -E '正交正则化调试|AUC|AP' | head -20
 

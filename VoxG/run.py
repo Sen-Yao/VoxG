@@ -33,7 +33,7 @@ parser.add_argument('--mean', type=float, default=0.0)
 parser.add_argument('--var', type=float, default=0.0)
 
 parser.add_argument('--train_rate', type=float, default=0.15)
-parser.add_argument('--method', type=str, default="GGAD")
+parser.add_argument('--method', type=str, default="VoxG")
 
 args = parser.parse_args()
 
@@ -99,7 +99,7 @@ wandb.define_metric("AP", summary="last")
 # Load and preprocess data
 adj, features, labels, all_idx, idx_train, idx_val, idx_test, ano_label, str_ano_label, attr_ano_label, normal_label_idx, abnormal_label_idx = load_mat(args.dataset, args.train_rate)
 
-# adj, features, labels, all_idx, idx_train, idx_val, idx_test, ano_label, str_ano_label, attr_ano_label, normal_label_idx, abnormal_label_idx = load_mat_GGAD(args.dataset, args.train_rate)
+# adj, features, labels, all_idx, idx_train, idx_val, idx_test, ano_label, str_ano_label, attr_ano_label, normal_label_idx, abnormal_label_idx = load_mat_VoxG(args.dataset, args.train_rate)
 
 if args.dataset in ['Amazon', 't_finance', 'reddit', 'elliptic']:
     features, _ = preprocess_features(features)

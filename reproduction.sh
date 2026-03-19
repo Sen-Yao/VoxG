@@ -38,7 +38,7 @@ run_amazon() {
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer
+        --model_type=VoxGFormer
 }
 
 # ============================================
@@ -65,7 +65,7 @@ run_reddit() {
         --seed=1 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer
+        --model_type=VoxGFormer
 }
 
 # ============================================
@@ -91,7 +91,7 @@ run_photo() {
         --seed=2 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer
+        --model_type=VoxGFormer
 }
 
 # ============================================
@@ -118,7 +118,7 @@ run_elliptic() {
         --seed=0 \
         --train_rate=0.1 \
         --warmup_updates=50 \
-        --model_type=GGADFormer
+        --model_type=VoxGFormer
 }
 
 # ============================================
@@ -145,7 +145,7 @@ run_tfinance() {
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer
+        --model_type=VoxGFormer
 }
 
 # ============================================
@@ -172,7 +172,7 @@ run_tolokers() {
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer
+        --model_type=VoxGFormer
 }
 
 # ============================================
@@ -199,7 +199,7 @@ run_reddit() {
         --seed=1 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer
+        --model_type=VoxGFormer
 }
 
 # ============================================
@@ -226,7 +226,7 @@ run_elliptic() {
         --seed=0 \
         --train_rate=0.1 \
         --warmup_updates=50 \
-        --model_type=GGADFormer
+        --model_type=VoxGFormer
 }
 
 # ============================================
@@ -256,7 +256,7 @@ run_questions() {
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
-        --model_type=GGADFormer
+        --model_type=VoxGFormer
 }
 
 case "${1:-all}" in

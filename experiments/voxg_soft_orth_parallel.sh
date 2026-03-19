@@ -31,7 +31,7 @@ CUDA_VISIBLE_DEVICES=1 python run.py \
     --pp_k=5 --progregate_alpha=0.4 --rec_loss_weight=1 \
     --ring_R_max=1 --ring_R_min=0.3 --ring_loss_weight=1 \
     --seed=0 --train_rate=0.05 --warmup_updates=50 \
-    --model_type=GGADFormer --orthogonalize_tokens=False \
+    --model_type=VoxGFormer --orthogonalize_tokens=False \
     > logs/experiments/parallel/01_baseline.log 2>&1 &
 PID1=$!
 echo "   PID: $PID1"
@@ -46,7 +46,7 @@ CUDA_VISIBLE_DEVICES=2 python run.py \
     --pp_k=5 --progregate_alpha=0.4 --rec_loss_weight=1 \
     --ring_R_max=1 --ring_R_min=0.3 --ring_loss_weight=1 \
     --seed=0 --train_rate=0.05 --warmup_updates=50 \
-    --model_type=GGADFormer --orthogonalize_tokens=True \
+    --model_type=VoxGFormer --orthogonalize_tokens=True \
     --orthogonal_beta=0.5 \
     > logs/experiments/parallel/02_soft_beta50.log 2>&1 &
 PID2=$!
@@ -62,7 +62,7 @@ CUDA_VISIBLE_DEVICES=3 python run.py \
     --pp_k=5 --progregate_alpha=0.4 --rec_loss_weight=1 \
     --ring_R_max=1 --ring_R_min=0.3 --ring_loss_weight=1 \
     --seed=0 --train_rate=0.05 --warmup_updates=50 \
-    --model_type=GGADFormer --orthogonalize_tokens=True \
+    --model_type=VoxGFormer --orthogonalize_tokens=True \
     --orthogonal_beta=0.3 \
     > logs/experiments/parallel/03_soft_beta30.log 2>&1 &
 PID3=$!
@@ -78,7 +78,7 @@ CUDA_VISIBLE_DEVICES=4 python run.py \
     --pp_k=5 --progregate_alpha=0.4 --rec_loss_weight=1 \
     --ring_R_max=1 --ring_R_min=0.3 --ring_loss_weight=1 \
     --seed=0 --train_rate=0.05 --warmup_updates=50 \
-    --model_type=GGADFormer --orthogonalize_tokens=False \
+    --model_type=VoxGFormer --orthogonalize_tokens=False \
     --lambda_orthogonal=0.01 \
     > logs/experiments/parallel/04_orth_reg_001.log 2>&1 &
 PID4=$!
@@ -94,7 +94,7 @@ CUDA_VISIBLE_DEVICES=5 python run.py \
     --pp_k=5 --progregate_alpha=0.4 --rec_loss_weight=1 \
     --ring_R_max=1 --ring_R_min=0.3 --ring_loss_weight=1 \
     --seed=0 --train_rate=0.05 --warmup_updates=50 \
-    --model_type=GGADFormer --orthogonalize_tokens=False \
+    --model_type=VoxGFormer --orthogonalize_tokens=False \
     --lambda_orthogonal=0.1 \
     > logs/experiments/parallel/05_orth_reg_01.log 2>&1 &
 PID5=$!
@@ -110,7 +110,7 @@ CUDA_VISIBLE_DEVICES=6 python run.py \
     --pp_k=5 --progregate_alpha=0.4 --rec_loss_weight=1 \
     --ring_R_max=1 --ring_R_min=0.3 --ring_loss_weight=1 \
     --seed=0 --train_rate=0.05 --warmup_updates=50 \
-    --model_type=GGADFormer --orthogonalize_tokens=True \
+    --model_type=VoxGFormer --orthogonalize_tokens=True \
     --orthogonal_beta=0.3 --lambda_orthogonal=0.01 \
     > logs/experiments/parallel/06_combined.log 2>&1 &
 PID6=$!

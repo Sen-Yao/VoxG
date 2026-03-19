@@ -1,29 +1,29 @@
 # 以下为复现实验所使用的超参数配置：
 
-######################################## GGAD ########################################
+######################################## VoxG ########################################
 
 # Amazon
-python run.py --embedding_dim=300 --model_type=GGAD --margin_loss_weight=1 --warmup_updates=0 --num_epoch=200 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05  --dataset=Amazon 
+python run.py --embedding_dim=300 --model_type=VoxG --margin_loss_weight=1 --warmup_updates=0 --num_epoch=200 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05  --dataset=Amazon 
 
 # reddit
-python run.py --embedding_dim=300 --model_type=GGAD --margin_loss_weight=1 --warmup_updates=0 --num_epoch=50 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05  --dataset=reddit 
+python run.py --embedding_dim=300 --model_type=VoxG --margin_loss_weight=1 --warmup_updates=0 --num_epoch=50 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05  --dataset=reddit 
 
 # photo
-python run.py --embedding_dim=300 --model_type=GGAD --margin_loss_weight=1 --warmup_updates=0 --num_epoch=50 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05  --dataset=photo 
+python run.py --embedding_dim=300 --model_type=VoxG --margin_loss_weight=1 --warmup_updates=0 --num_epoch=50 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05  --dataset=photo 
 
 # elliptic
 # sweep jbg0lp3m
-python run.py --embedding_dim=300 --model_type=GGAD --margin_loss_weight=1 --warmup_updates=0 --num_epoch=70 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05  --dataset=elliptic 
+python run.py --embedding_dim=300 --model_type=VoxG --margin_loss_weight=1 --warmup_updates=0 --num_epoch=70 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05  --dataset=elliptic 
 
 # t_finance
-python run.py --embedding_dim=300 --model_type=GGAD --margin_loss_weight=1 --warmup_updates=0 --num_epoch=70 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05 --confidence_margin=0.7 --dataset=t_finance --device -1
+python run.py --embedding_dim=300 --model_type=VoxG --margin_loss_weight=1 --warmup_updates=0 --num_epoch=70 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05 --confidence_margin=0.7 --dataset=t_finance --device -1
 
 # tolokers
 # sweep 956275lb
-python run.py --embedding_dim=300 --model_type=GGAD --margin_loss_weight=1 --warmup_updates=0 --num_epoch=50 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05 --confidence_margin=0.7 --dataset=tolokers 
+python run.py --embedding_dim=300 --model_type=VoxG --margin_loss_weight=1 --warmup_updates=0 --num_epoch=50 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05 --confidence_margin=0.7 --dataset=tolokers 
 
 # questions
-python run.py --embedding_dim=300 --model_type=GGAD --margin_loss_weight=1 --warmup_updates=0 --num_epoch=70 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05  --confidence_margin=0.7 --dataset=questions 
+python run.py --embedding_dim=300 --model_type=VoxG --margin_loss_weight=1 --warmup_updates=0 --num_epoch=70 --peak_lr=1e-3 --end_lr=1e-3 --train_rate 0.05  --confidence_margin=0.7 --dataset=questions 
 
 ######################################## GASTE ########################################
 
