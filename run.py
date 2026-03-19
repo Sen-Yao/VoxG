@@ -18,6 +18,8 @@ import wandb
 from visualization import create_tsne_visualization, visualize_attention_weights
 from losses.focal_loss import FocalLoss, AdaptiveFocalLoss
 from utils import send_notification
+from curriculum import DifficultyScorer, CurriculumScheduler, CurriculumConfig, create_curriculum_scheduler
+
 
 # os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 # os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, [3]))
@@ -177,14 +179,78 @@ def train(args):
         test_data_loader = Data.DataLoader(batch_data_test, batch_size=args.batch_size, shuffle = False)
 
         normal_for_train_idx = torch.tensor(normal_for_train_idx, dtype=torch.long, device=device)
+    
+    # Initialize Curriculum Learning Scheduler if enabled
+    curriculum_scheduler = None
+    if args.curriculum and args.model_type == "VoxGFormer":
+        print("Initializing Curriculum Learning Scheduler...")
+        # Get original adjacency matrix and features for difficulty scoring
+        # Note: features may be processed, we use the original from load_mat
+        if 'raw_adj' in dir():
+            adj_for_curriculum = raw_adj.cpu().numpy() if isinstance(raw_adj, torch.Tensor) else raw_adj
+        else:
+            # Reconstruct adjacency from processed adj
+            adj_for_curriculum = sp.csr_matrix(adj.squeeze(0).cpu().numpy())
+        
+        features_for_curriculum = features.squeeze(0).cpu().numpy() if isinstance(features, torch.Tensor) else features
+        
+        curriculum_scheduler = create_curriculum_scheduler(
+            adj=adj_for_curriculum,
+            features=features_for_curriculum,
+            normal_train_idx=np.array(normal_for_train_idx.cpu() if isinstance(normal_for_train_idx, torch.Tensor) else normal_for_train_idx),
+            strategy=args.curriculum_strategy,
+            start_ratio=args.curriculum_start_ratio,
+            end_ratio=args.curriculum_end_ratio
+        )
+        print(f"Curriculum Learning initialized: strategy={args.curriculum_strategy}, start_ratio={args.curriculum_start_ratio}, end_ratio={args.curriculum_end_ratio}")
+
 
 
     # Train model
     print(f"Start training! Total epochs: {args.num_epoch}")
+    if args.curriculum and curriculum_scheduler is not None:
+        print(f"Curriculum Learning: Using {curriculum_scheduler.num_samples} training samples")
+        print(f"  Strategy: {args.curriculum_strategy}")
+        print(f"  Start ratio: {args.curriculum_start_ratio}, End ratio: {args.curriculum_end_ratio}")
+
     pbar = tqdm(total=args.num_epoch, desc='Training')
     total_time = 0
     for epoch in range(args.num_epoch + 1):
         dynamic_weights = get_dynamic_loss_weights(epoch, args)
+        # Update sampler weights for curriculum learning
+        if curriculum_scheduler is not None and args.model_type == "VoxGFormer":
+            # Get curriculum weights for this epoch
+            curriculum_weights = curriculum_scheduler.get_epoch_weights(epoch, args.num_epoch, device=device)
+            curriculum_weights = curriculum_weights.cpu()
+            
+            # Combine with class balance weights
+            all_indices = set(range(num_nodes))
+            known_indices = set(normal_for_train_idx.cpu().numpy() if isinstance(normal_for_train_idx, torch.Tensor) else normal_for_train_idx)
+            unknown_indices = list(all_indices - known_indices)
+            
+            # Create new weights that balance curriculum and class balance
+            new_weights = torch.zeros(num_nodes)
+            class_weight_normal = 1.0 / len(normal_for_train_idx)
+            class_weight_unknown = 1.0 / len(unknown_indices)
+            
+            # Apply curriculum weights to known samples
+            for idx in known_indices:
+                rank_idx = np.where(curriculum_scheduler.ranked_indices == idx)[0]
+                if len(rank_idx) > 0:
+                    # Higher curriculum weight = more likely to be sampled
+                    new_weights[idx] = curriculum_weights[rank_idx[0]] * class_weight_normal
+                else:
+                    new_weights[idx] = class_weight_normal
+            
+            new_weights[list(unknown_indices)] = class_weight_unknown
+            
+            # Normalize
+            new_weights = new_weights / new_weights.sum() * num_nodes
+            
+            # Update sampler
+            sampler = Data.WeightedRandomSampler(new_weights, num_samples=num_nodes, replacement=True)
+            train_data_loader = Data.DataLoader(batch_data_train, batch_size=args.batch_size, sampler=sampler, num_workers=0, pin_memory=False)
+
         start_time = time.time()
         train_flag = True
         model.train()
@@ -281,6 +347,10 @@ def train(args):
                 if args.use_contrastive:
                     log_dict["contrastive_loss"] = loss_contrastive.item()
                 wandb.log(log_dict, step=epoch)
+                # Log curriculum progress
+                if curriculum_scheduler is not None:
+                    curriculum_metrics = curriculum_scheduler.log_progress(epoch, args.num_epoch)
+                    wandb.log(curriculum_metrics, step=epoch)
         else:
             optimizer.zero_grad()
 
@@ -517,6 +587,15 @@ if __name__ == "__main__":
     parser.add_argument('--contrastive_weight', type=float, default=0.1, help='Weight for contrastive loss')
     parser.add_argument('--contrastive_temp', type=float, default=0.1, help='Temperature for InfoNCE loss')
     parser.add_argument('--contrastive_aug_ratio', type=float, default=0.2, help='Feature dropout ratio for augmentation')
+    
+    # Curriculum Learning arguments
+    parser.add_argument('--curriculum', type=str2bool, default=False, help='Enable curriculum learning')
+    parser.add_argument('--curriculum_strategy', type=str, default='linear', choices=['linear', 'step', 'exp'], help='Curriculum pacing strategy')
+    parser.add_argument('--curriculum_start_ratio', type=float, default=0.3, help='Starting ratio of samples in curriculum')
+    parser.add_argument('--curriculum_end_ratio', type=float, default=1.0, help='Ending ratio of samples in curriculum')
+    parser.add_argument('--curriculum_step_epochs', type=int, default=50, help='Epochs per step for step strategy')
+    parser.add_argument('--curriculum_exp_gamma', type=float, default=0.02, help='Gamma for exp strategy')
+
     
     # VoxG SPSE MVP 参数
     parser.add_argument('--use_spse_mvp', type=str2bool, default=False, help='[VoxG MVP] Enable SPSE triangle counting (fast validation)')
