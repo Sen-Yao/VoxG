@@ -1,54 +1,125 @@
 # Nexus Agent State - VoxG Project
-# Last updated: 2026-03-19 17:08 (Asia/Shanghai)
+# Last updated: 2026-03-19 19:50 (Asia/Shanghai)
 
 agent:
   name: Nexus
   role: "VoxG 项目经理"
   
 status:
-  phase: "创新探索期 - 对比学习调优"
-  progress: 60%
+  phase: "实验验证期 - 结构重构失败"
+  progress: 75%
   blocked: false
   blocked_reason: null
+  last_report: "2026-03-19 19:50"
+  last_action: "结构重构损失实验验证完成"
 
+# ========== 当前任务 ==========
+current_task:
+  name: "结构重构损失实验验证"
+  description: "验证度重构损失是否有效"
+  status: "COMPLETED"
+  result: "失败 - 无论权重如何调整都严重损害性能"
+  datasets: ["Photo"]
+
+# ========== 关键发现 ==========
+key_findings:
+  - finding: "VoxG 架构已高度优化，架构改进普遍损害性能"
+    evidence:
+      - "位置编码: -14% ~ -32% AUC"
+      - "稀疏注意力: -31% AUC"
+      - "对比学习: -27% ~ -29% AUC"
+      - "结构重构: -20% ~ -30% AUC"
+    implication: "需要重新评估创新方向，考虑数据/训练层面改进"
+  
+  - finding: "结构重构损失不适用于 VoxGFormer"
+    evidence:
+      - "权重 0.1: AUC 0.58 (baseline 0.76)"
+      - "权重 0.01: AUC 0.58 (无改善)"
+    implication: "度预测目标与异常检测目标不兼容"
+
+# ========== 完成的工作 ==========
 achievements:
   literature_review:
     status: "COMPLETED"
-    papers: ["Exphormer", "SFi-Former", "TransGAD", "TSAD", "NodePiece"]
+    papers: ["Exphormer", "SFi-Former", "TransGAD", "TSAD", "NodePiece", "CVGAD"]
   
   implementations:
     - name: "Focal Loss"
       file: "losses/focal_loss.py"
       status: "TESTED"
-      result: "AUC +0.5% (微弱)"
+      result: "+0.5% (微弱)"
+      
+    - name: "Cosine PE"
+      status: "TESTED"
+      result: "-32.5% Photo, -13.8% Reddit"
       
     - name: "Sparse Attention"
       file: "sparse_attention.py"
       status: "TESTED"
-      result: "AUC -31% (失败)"
+      result: "-31% Photo"
       
     - name: "Contrastive Loss"
       file: "losses/contrastive_loss.py"
-      status: "TUNING"
-      result: "调优中"
+      status: "TESTED"
+      result: "-27% ~ -29% Photo"
+    
+    - name: "Structure Reconstruction"
+      file: "structure_reconstruction.py"
+      status: "TESTED"
+      result: "-20% ~ -30% Photo (失败)"
 
+# ========== 实验结果汇总 ==========
 experiments:
-  contrastive_tuning:
-    status: "RUNNING"
-    start_time: "2026-03-19 17:06"
-    configs:
-      - gpu: 1, dataset: Photo, temp: 0.05, weight: 0.1
-      - gpu: 2, dataset: Photo, temp: 0.1, weight: 0.3
-      - gpu: 3, dataset: Photo, temp: 0.2, weight: 0.5
-      - gpu: 4, dataset: Reddit, temp: 0.05, weight: 0.1
-      - gpu: 5, dataset: Reddit, temp: 0.1, weight: 0.3
-    expected_completion: "2026-03-19 18:30"
+  baseline:
+    photo_auc: 0.7573  # 100 epochs, seed=2
+    
+  failed_innovations:
+    - name: "Focal Loss"
+      result: "+0.5%"
+      conclusion: "效果微弱，类别不平衡不是主要问题"
+      
+    - name: "位置编码 (Cosine/Learnable PE)"
+      result: "-14% ~ -32%"
+      conclusion: "PPR 已隐式编码位置，显式 PE 是噪声"
+      
+    - name: "Exphormer 稀疏注意力"
+      result: "-31%"
+      conclusion: "与 hop tokenization 不兼容"
+      
+    - name: "对比学习 (CVGAD 风格)"
+      result: "-27% ~ -29%"
+      conclusion: "与 Ring Loss 目标冲突"
+      
+    - name: "结构重构损失"
+      result: "-20% ~ -30%"
+      conclusion: "度预测目标与异常检测不兼容"
 
-git:
-  latest: "cfbaeaa ✨ 添加 CVGAD 风格对比学习损失 (实验性)"
-  commits_today: 5
+# ========== 下一步建议 ==========
+next_steps:
+  - "暂停架构创新，转向数据层面改进"
+  - "考虑数据增强、伪标签、自训练等方法"
+  - "分析 VoxGFormer 成功的关键因素"
+  - "研究与其他 SOTA 方法（如 SL-GAD）的结合"
 
-recommendations:
-  - "等待对比学习调优实验完成（预计 1.5 小时）"
-  - "分析结果，选择最佳超参数配置"
-  - "如果效果不佳，探索其他创新方向"
+# ========== GPU 资源 ==========
+resources:
+  available_gpus: [1, 2, 3, 4, 5]
+  occupied_gpus: [0, 6, 7]  # 其他用户任务
+
+# ========== 经验教训 ==========
+lessons:
+  - date: "2026-03-19"
+    lesson: "架构创新可能损害已优化的模型"
+    suggestion: "在引入大改动前先做小规模验证"
+  
+  - date: "2026-03-19"
+    lesson: "CV/NLP 成功的方法不一定适用于图异常检测"
+    suggestion: "理解目标领域特性后再迁移技术"
+  
+  - date: "2026-03-19"
+    lesson: "结构信息在 GAD 中的作用复杂"
+    suggestion: "需要更深入分析结构-异常关系"
+    
+  - date: "2026-03-19"
+    lesson: "子代理 shell 脚本容易出错"
+    suggestion: "使用 Python 脚本或本地编辑后 scp"
