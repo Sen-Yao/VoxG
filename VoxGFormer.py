@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import random
 import time
 
+from losses.contrastive_loss import GraphContrastiveLoss
 from check_gpu_memory import print_gpu_memory_usage, print_tensor_memory, clear_gpu_memory
 
 class FeedForwardNetwork(nn.Module):
@@ -222,6 +223,17 @@ class VoxGFormer(nn.Module):
 
         # 将模型移动到指定设备
         self.to(self.device)
+
+        # 对比学习模块
+        self.use_contrastive = getattr(args, 'use_contrastive', False)
+        if self.use_contrastive:
+            self.contrastive_loss_fn = GraphContrastiveLoss(
+                hidden_dim=args.embedding_dim,
+                temperature=getattr(args, 'contrastive_temp', 0.1),
+                aug_ratio=getattr(args, 'contrastive_aug_ratio', 0.2)
+            ).to(self.device)
+        else:
+            self.contrastive_loss_fn = None
     
     def TransformerEncoder(self, tokens):
         """
@@ -314,6 +326,12 @@ class VoxGFormer(nn.Module):
             ring_in_range_loss = torch.relu(outlier_to_center_dist - args.ring_R_max)
 
             loss_ring = torch.mean(ring_out_range_loss + ring_in_range_loss)
+
+            # 对比学习损失
+            loss_contrastive = torch.tensor(0.0, device=emb.device)
+            if self.use_contrastive and self.contrastive_loss_fn is not None:
+                if normal_for_train_idx is not None and len(normal_for_train_idx) > 1:
+                    loss_contrastive = self.contrastive_loss_fn(emb[0, normal_for_train_idx, :])
             # 将重构后的 tokens 再编码为 embedding
             reconstructed_tokens_vector = torch.reshape(reconstructed_tokens, (-1, args.pp_k+1, self.n_in))
             reencoded_emb = self.TransformerEncoder(reconstructed_tokens_vector)[:, normal_for_generation_idx, :].detach().squeeze(0)
@@ -323,6 +341,7 @@ class VoxGFormer(nn.Module):
 
             f_1 = self.fc1(emb_combine)
         else:
+            loss_contrastive = torch.tensor(0.0, device=emb.device)
             f_1 = self.fc1(emb)
         f_1 = self.act(f_1)
         f_2 = self.fc2(f_1)
@@ -331,7 +350,7 @@ class VoxGFormer(nn.Module):
         emb = emb.clone()
 
         # gna_loss = torch.tensor(0.0, device=emb.device)
-        return emb, emb_combine, logits, outlier_emb, noised_normal_for_generation_emb, loss_rec, loss_ring
+        return emb, emb_combine, logits, outlier_emb, noised_normal_for_generation_emb, loss_rec, loss_ring, loss_contrastive
 
     def compute_rec_loss(self, input_tokens, reconstructed_tokens, normal_for_generation_emb, reencoded_emb, normal_for_generation_idx):
         """

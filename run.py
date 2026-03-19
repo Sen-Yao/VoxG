@@ -202,7 +202,7 @@ def train(args):
                 optimizer.zero_grad()
                 is_known_normal_mask = torch.isin(batch_global_indices, normal_for_train_idx)
                 local_normal_for_train_idx = torch.nonzero(is_known_normal_mask, as_tuple=False).squeeze(-1)
-                emb, emb_combine, logits, outlier_emb, noised_normal_for_generation_emb, loss_rec, loss_ring = model(concated_input_features, None,
+                emb, emb_combine, logits, outlier_emb, noised_normal_for_generation_emb, loss_rec, loss_ring, loss_contrastive = model(concated_input_features, None,
                                                                     None, local_normal_for_train_idx,
                                                                     train_flag, args)
                     # BCE loss
@@ -240,6 +240,10 @@ def train(args):
                 
                 # 总损失
                 loss = dynamic_weights['bce_loss_weight'] * loss_bce + dynamic_weights['rec_loss_weight'] * loss_rec + dynamic_weights['ring_loss_weight'] * loss_ring + args.lambda_orthogonal * loss_orth
+                
+                # 对比学习损失
+                if args.use_contrastive:
+                    loss = loss + args.contrastive_weight * loss_contrastive
 
                 loss.backward()
                 optimizer.step()
@@ -274,6 +278,8 @@ def train(args):
                 }
                 if args.lambda_orthogonal > 0:
                     log_dict["orth_loss"] = loss_orth.item()
+                if args.use_contrastive:
+                    log_dict["contrastive_loss"] = loss_contrastive.item()
                 wandb.log(log_dict, step=epoch)
         else:
             optimizer.zero_grad()
@@ -356,7 +362,7 @@ def train(args):
                     for _, item in enumerate(test_data_loader):
                         concated_input_features = item[0].to(device)
                         labels = item[1].to(device)
-                        emb, emb_combine, logits, outlier_emb, noised_normal_for_generation_emb, loss_rec, loss_ring = model(concated_input_features, None, None, None,
+                        emb, emb_combine, logits, outlier_emb, noised_normal_for_generation_emb, loss_rec, loss_ring, loss_contrastive = model(concated_input_features, None, None, None,
                                                                                 train_flag, args)
                         all_batched_logits.append(logits.squeeze(0))
                     # Concatenate all batched logits
@@ -501,6 +507,12 @@ if __name__ == "__main__":
     parser.add_argument('--orthogonalize_tokens', type=str2bool, default=False, help='[VoxG] Enable orthogonalization in tokenization (Gram-Schmidt)')
     parser.add_argument('--orthogonal_beta', type=float, default=0.5, help='[VoxG] Soft orthogonalization strength (1.0=hard, 0.0=none)')
     parser.add_argument('--lambda_orthogonal', type=float, default=0.0, help='[VoxG] Orthogonal regularization loss weight (建议：1.0-10.0)')
+
+    # 对比学习参数
+    parser.add_argument('--use_contrastive', type=str2bool, default=False, help='Use contrastive learning loss')
+    parser.add_argument('--contrastive_weight', type=float, default=0.1, help='Weight for contrastive loss')
+    parser.add_argument('--contrastive_temp', type=float, default=0.1, help='Temperature for InfoNCE loss')
+    parser.add_argument('--contrastive_aug_ratio', type=float, default=0.2, help='Feature dropout ratio for augmentation')
     
     # VoxG SPSE MVP 参数
     parser.add_argument('--use_spse_mvp', type=str2bool, default=False, help='[VoxG MVP] Enable SPSE triangle counting (fast validation)')
