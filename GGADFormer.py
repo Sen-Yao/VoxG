@@ -1,4 +1,3 @@
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -28,7 +27,7 @@ class MultiHeadAttention(nn.Module):
         self.num_heads = num_heads
 
         self.att_size = att_size = hidden_size // num_heads
-        self.scale = 1 / math.sqrt(self.att_size)
+        self.scale = 1
 
         self.linear_q = nn.Linear(hidden_size, num_heads * att_size)
         self.linear_k = nn.Linear(hidden_size, num_heads * att_size)
@@ -203,18 +202,23 @@ class GGADFormer(nn.Module):
         self.final_ln = nn.LayerNorm(args.embedding_dim)
         self.read_out = nn.Linear(args.embedding_dim, args.embedding_dim)
 
-        # 自适应输入维度（支持 SPSE MVP 添加额外特征）
-        self.token_projection = None  # 延迟初始化
+        self.token_projection = nn.Linear(self.n_in, args.embedding_dim)
 
-        # 延迟初始化 token_decoder（支持 SPSE MVP 动态维度）
-        self.token_decoder = None
+        self.token_decoder = nn.Sequential(
+            nn.Linear(args.embedding_dim, args.embedding_dim),
+            nn.ReLU(),
+            nn.Linear(args.embedding_dim, (args.pp_k+1) * self.n_in)
+        )
 
         # 重构损失函数
         self.recon_loss_fn = nn.MSELoss()
 
         # 投影层：将重构误差从2*n_in维度投影到embedding_dim维度
-        # 延迟初始化 reconstruction_proj（支持 SPSE MVP 动态维度）
-        self.reconstruction_proj = None
+        self.reconstruction_proj = nn.Sequential(
+            nn.Linear((args.pp_k+1) * n_in, args.embedding_dim),
+            nn.ReLU(),
+            nn.Linear(args.embedding_dim, args.embedding_dim)
+        )
 
         # 将模型移动到指定设备
         self.to(self.device)
@@ -226,10 +230,6 @@ class GGADFormer(nn.Module):
         Outputs:
             - emb: 输入节点的编码结果，形状 [1, batch_size, embedding_dim]
         """
-        # 延迟初始化 token_projection（支持 SPSE MVP 添加额外特征）
-        if self.token_projection is None:
-            input_dim = tokens.shape[-1]
-            self.token_projection = nn.Linear(input_dim, self.args.embedding_dim).to(tokens.device)
         emb = self.token_projection(tokens)
         for i, l in enumerate(self.layers):
             emb, current_attention_weights = self.layers[i](emb)
@@ -282,27 +282,9 @@ class GGADFormer(nn.Module):
             # print(f"time for noise:{time.time() - start_time}")
 
             # 重构学习
-            # 延迟初始化 token_decoder（支持 SPSE MVP 动态维度）
-            if self.token_decoder is None:
-                actual_input_dim = input_tokens.shape[-1]
-                self.token_decoder = nn.Sequential(
-                    nn.Linear(args.embedding_dim, args.embedding_dim),
-                    nn.ReLU(),
-                    nn.Linear(args.embedding_dim, (args.pp_k+1) * actual_input_dim)
-                ).to(emb.device)
-            reconstructed_tokens = self.token_decoder(emb).squeeze(0)
-            # 动态获取输入维度（支持 SPSE MVP）
-            actual_input_dim = input_tokens.shape[-1]
-            reconstruction_error = reconstructed_tokens - input_tokens.view(-1, (args.pp_k+1) * actual_input_dim)
+            reconstructed_tokens = self.token_decoder(emb).squeeze(0)  # [num_nodes, (args.pp_k+1)*n_in]
+            reconstruction_error = reconstructed_tokens - input_tokens.view(-1, (args.pp_k+1) * self.n_in)
             # Project reconstruction error to embedding dimension
-            # 延迟初始化 reconstruction_proj（支持 SPSE MVP 动态维度）
-            if self.reconstruction_proj is None:
-                actual_input_dim = input_tokens.shape[-1]
-                self.reconstruction_proj = nn.Sequential(
-                    nn.Linear((args.pp_k+1) * actual_input_dim, args.embedding_dim),
-                    nn.ReLU(),
-                    nn.Linear(args.embedding_dim, args.embedding_dim)
-                ).to(emb.device)
             reconstruction_error_proj = self.reconstruction_proj(reconstruction_error[normal_for_generation_idx, :])
 
             # Ablation study:
@@ -333,9 +315,7 @@ class GGADFormer(nn.Module):
 
             loss_ring = torch.mean(ring_out_range_loss + ring_in_range_loss)
             # 将重构后的 tokens 再编码为 embedding
-            # 动态获取输入维度（支持 SPSE MVP）
-            actual_input_dim = input_tokens.shape[-1]
-            reconstructed_tokens_vector = torch.reshape(reconstructed_tokens, (-1, args.pp_k+1, actual_input_dim))
+            reconstructed_tokens_vector = torch.reshape(reconstructed_tokens, (-1, args.pp_k+1, self.n_in))
             reencoded_emb = self.TransformerEncoder(reconstructed_tokens_vector)[:, normal_for_generation_idx, :].detach().squeeze(0)
             loss_rec = self.compute_rec_loss(input_tokens, reconstructed_tokens, normal_for_generation_emb, reencoded_emb, normal_for_generation_idx)
 
@@ -364,9 +344,7 @@ class GGADFormer(nn.Module):
         Returns:
             loss_rec: 重构损失值
         """
-        # 动态获取输入维度（支持 SPSE MVP）
-        actual_input_dim = input_tokens.shape[-1]
-        token_rec_loss = self.recon_loss_fn(reconstructed_tokens, input_tokens.view(-1, (self.args.pp_k+1) * actual_input_dim))
+        token_rec_loss = self.recon_loss_fn(reconstructed_tokens, input_tokens.view(-1, (self.args.pp_k+1) * self.n_in))
         # 计算距离
         emb_rec_loss = torch.mean(torch.norm(normal_for_generation_emb.squeeze(0) - reencoded_emb, dim=-1))  # [N]
         loss_rec = self.args.lambda_rec_tok * token_rec_loss + self.args.lambda_rec_emb * emb_rec_loss
