@@ -73,7 +73,7 @@ def run_agents():
         return
 
     print(f"Sweep 创建成功: {sweep_id}")
-    # send_notification(f"🚀 Sweep 已启动\nSweep ID: {sweep_id}\nGPUs: {GPUS}\nSweep 网址: https://wandb.ai/HCCS/GGADFormer/sweeps/{sweep_id}")
+    # send_notification(f"🚀 Sweep 已启动\nSweep ID: {sweep_id}\nGPUs: {GPUS}\nSweep 网址: https://wandb.ai/HCCS/VoxGFormer/sweeps/{sweep_id}")
     send_sweep_info(sweep_fullname=sweep_fullname, status="start")
     start_time = datetime.now()
     # 2. 启动 Agents

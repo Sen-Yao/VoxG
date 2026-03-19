@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 from model import Model
-from GGADFormer import GGADFormer
+from VoxGFormer import VoxGFormer
 from SGT import SGT
 from utils import *
 
@@ -50,7 +50,7 @@ def train(args):
     if args.dataset == 'dgraph':
         adj, features, labels, all_idx, idx_train, idx_val, idx_test, ano_label, _, _, normal_for_train_idx, normal_for_generation_idx = load_dgraph(train_rate=args.train_rate, val_rate=0.1, args=args)
         concated_input_features = nagphormer_tokenization(features, adj, args)
-        model = GGADFormer(features.shape[1], args.embedding_dim, 'prelu', args)
+        model = VoxGFormer(features.shape[1], args.embedding_dim, 'prelu', args)
         features = features.to(device)
         adj = adj.to(device)
         labels = torch.tensor(labels).to(device)
@@ -69,7 +69,7 @@ def train(args):
 
         num_nodes = features.shape[0]
         ft_size = features.shape[1]
-        if args.model_type == 'GGAD':
+        if args.model_type == 'VoxG':
             raw_adj = adj
             #print(adj.sum())
             raw_adj = (raw_adj + sp.eye(raw_adj.shape[0])).todense()
@@ -87,7 +87,7 @@ def train(args):
         labels = torch.FloatTensor(labels[np.newaxis])
 
         # 将数据移动到指定设备
-        if args.model_type != 'GGADFormer':
+        if args.model_type != 'VoxGFormer':
             features = features.to(device)
             adj = adj.to(device)
             labels = labels.to(device)
@@ -100,9 +100,9 @@ def train(args):
 
         # Initialize model and optimiser
 
-        if args.model_type == 'GGADFormer':
+        if args.model_type == 'VoxGFormer':
             concated_input_features = nagphormer_tokenization(features.squeeze(0), adj.squeeze(0), args)
-            model = GGADFormer(ft_size, args.embedding_dim, 'prelu', args)
+            model = VoxGFormer(ft_size, args.embedding_dim, 'prelu', args)
         elif args.model_type == 'SGT':
             concated_input_features = preprocess_sample_features(args, features.squeeze(0), adj.squeeze(0)).to(device)
             model = SGT(n_layers=args.GT_num_layers,
@@ -114,7 +114,7 @@ def train(args):
                 dropout_rate=args.GT_dropout,
                 attention_dropout_rate=args.GT_attention_dropout,
                 args=args).to(device)
-        elif args.model_type == 'GGAD':
+        elif args.model_type == 'VoxG':
             concated_input_features = features.to(device)
             model = Model(ft_size, args.embedding_dim, 'prelu', args.negsamp_ratio, args.readout, args)
         else:
@@ -145,7 +145,7 @@ def train(args):
     best_model_state = None
     best_epoch = 0
     
-    if args.model_type == "GGADFormer":
+    if args.model_type == "VoxGFormer":
         labels = labels.squeeze(0)
 
         all_node_indices = torch.arange(num_nodes)
@@ -188,7 +188,7 @@ def train(args):
         start_time = time.time()
         train_flag = True
         model.train()
-        if args.model_type == "GGADFormer":
+        if args.model_type == "VoxGFormer":
             batched_bce_loss = 0
             batched_rec_loss = 0
             batched_ring_loss = 0
@@ -291,7 +291,7 @@ def train(args):
 
             loss_bce = b_xent(logits, lbl)
             loss_bce = torch.mean(loss_bce)
-            if args.model_type == 'GGAD':
+            if args.model_type == 'VoxG':
             # Local affinity margin loss
                 emb = torch.squeeze(emb)
 
@@ -350,7 +350,7 @@ def train(args):
             model.eval()
             train_flag = False
 
-            if args.model_type == "GGADFormer":
+            if args.model_type == "VoxGFormer":
                 all_batched_logits = []
                 with torch.no_grad():
                     for _, item in enumerate(test_data_loader):
@@ -403,7 +403,7 @@ def train(args):
             
             
             # 可视化注意力权重
-            if args.model_type == 'GGADFormer' or args.model_type == 'SGT':
+            if args.model_type == 'VoxGFormer' or args.model_type == 'SGT':
                 # 获取邻接矩阵（去掉batch维度）
                 adj_matrix_np = adj.squeeze(0).detach().cpu().numpy()
                 # attention_stats = visualize_attention_weights(agg_attention_weights_last_epoch, labels, normal_for_train_idx, normal_for_generation_idx, outlier_emb_last_epoch, best_epoch, args.dataset, device, adj_matrix_np, args)
@@ -447,7 +447,7 @@ if __name__ == "__main__":
     parser.add_argument('--outlier_beta', type=float, default=0.3)
     parser.add_argument('--sample_rate', type=float, default=0.15)
     
-    parser.add_argument('--model_type', type=str, default='GGADFormer')
+    parser.add_argument('--model_type', type=str, default='VoxGFormer')
     parser.add_argument('--visualize', type=bool, default=False)
     parser.add_argument('--device', type=int, default=0)
 

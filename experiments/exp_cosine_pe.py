@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-实验：添加 Cosine 位置编码到 GGADFormer
+实验：添加 Cosine 位置编码到 VoxGFormer
 基于 TransGAD 论文的方法
 
 创新点：
@@ -22,7 +22,7 @@ import copy
 import numpy as np
 
 from utils import load_mat, nagphormer_tokenization
-from GGADFormer import GGADFormer
+from VoxGFormer import VoxGFormer
 from run import parse_args
 
 class CosinePositionalEncoding(nn.Module):
@@ -75,9 +75,9 @@ class LearnablePositionalEncoding(nn.Module):
         return x + self.pe[:seq_len, :].unsqueeze(0)
 
 
-class GGADFormer_WithPE(nn.Module):
+class VoxGFormer_WithPE(nn.Module):
     """
-    带位置编码的 GGADFormer
+    带位置编码的 VoxGFormer
     """
     def __init__(self, base_model, pe_type='cosine', d_model=256):
         super().__init__()
@@ -108,7 +108,7 @@ def add_pe_to_model(model, args, pe_type='cosine'):
     """
     直接修改模型，在 token_projection 后添加位置编码
     
-    这是侵入式修改，直接改变 GGADFormer 的 forward 逻辑
+    这是侵入式修改，直接改变 VoxGFormer 的 forward 逻辑
     """
     original_transformer_encoder = model.TransformerEncoder
     
@@ -182,7 +182,7 @@ def run_experiment(dataset='photo', device=1, pe_type='cosine', num_epochs=100):
     n_in = input_features.shape[2]
     n_h = args.embedding_dim
     
-    model = GGADFormer(n_in, n_h, 'prelu', args)
+    model = VoxGFormer(n_in, n_h, 'prelu', args)
     
     # 添加位置编码
     if args.use_pe:

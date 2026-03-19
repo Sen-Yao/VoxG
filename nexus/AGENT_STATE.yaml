@@ -1,5 +1,5 @@
 # Nexus Agent State - VoxG Project
-# Last updated: 2026-03-19 14:49 (Asia/Shanghai)
+# Last updated: 2026-03-19 15:35 (Asia/Shanghai)
 
 agent:
   name: Nexus
@@ -13,15 +13,14 @@ project:
   path_remote: HCCS86:/root/gpufree-data/linziyao/VoxG
   
 status:
-  phase: "创新探索期"
-  progress: 40%
-  checkpoint: 2026-03-19T14:49:00+08:00
-  git_commit: "dfa8473"
+  phase: "创新探索期 - 调试中"
+  progress: 25%
+  checkpoint: 2026-03-19T15:35:00+08:00
+  issue: "子代理修改导致代码回归，正在恢复"
 
 # ========== 复现阶段结果（已完成） ==========
 reproduction_complete:
   date: 2026-03-19
-  git_commit: "458664a"
   results:
     photo: { our_auc: 0.8764, paper_auc: 0.8377, delta: "+3.87%", status: "EXCEEDS" }
     amazon: { our_auc: 0.9565, paper_auc: 0.9344, delta: "+2.21%", status: "EXCEEDS" }
@@ -30,92 +29,47 @@ reproduction_complete:
     elliptic: { our_auc: 0.7613, paper_auc: 0.7475, delta: "+1.38%", status: "EXCEEDS", seed: 42 }
     tolokers: { our_auc: 0.6496, paper_auc: 0.6509, delta: "-0.13%", status: "CLOSE" }
     t_finance: { our_auc: 0.8932, paper_auc: 0.8988, delta: "-0.56%", status: "CLOSE" }
-  summary: "7/7 数据集达标，5个超越论文，2个接近(<1%)"
+  summary: "7/7 数据集达标"
 
-# ========== 创新探索阶段规划 ==========
+# ========== 创新探索阶段 ==========
 innovation_phase:
   goal: "探索新模型架构，超越 VecGAD 论文性能"
   
-  # 基于文献调研的优先级排序
-  implementation_priority:
-    - name: "Focal Loss"
-      priority: "🥇 最高"
-      expected_gain: "+3-8% AUROC (不平衡数据集)"
-      complexity: "极低 (10-20 行代码)"
-      status: "IN_PROGRESS"
-      
-    - name: "Exphormer 稀疏注意力"
-      priority: "🥈 高"
-      expected_gain: "+3-8% AUROC + 支持大规模图"
-      complexity: "中等 (200-400 行)"
-      status: "PENDING"
-      
-    - name: "Cosine 位置编码 (TransGAD)"
-      priority: "🥉 中"
-      expected_gain: "+2-5% AUROC"
-      complexity: "低 (50-100 行)"
-      status: "PENDING"
-      
-    - name: "对比学习损失"
-      priority: "中"
-      expected_gain: "+2-5% AUROC"
-      complexity: "中等 (150-250 行)"
-      status: "PENDING"
+  completed_tasks:
+    - name: "文献调研 #1"
+      result: "发现 Exphormer, SFi-Former, TransGAD 等关键论文"
+    - name: "文献调研 #2"
+      result: "生成 detailed 文献调研报告"
+    - name: "Focal Loss 实现"
+      result: "创建 losses/focal_loss.py"
+    - name: "Cosine PE 实验 (子代理)"
+      result: "AUC 0.59-0.63，低于基线"
+  
+  issues_found:
+    - "子代理修改 GGADFormer.py 导致 self.scale = 1"
+    - "子代理添加了位置编码代码但未正确实现"
+    - "需要恢复到正确版本后重新实验"
 
 # ========== 当前任务 ==========
 current_task:
   id: "innovate-004"
-  description: "验证 Focal Loss 效果 (Reddit/Elliptic 对比实验)"
-  started: 2026-03-19T14:49:00+08:00
-  experiments_running:
-    - "GPU1: Reddit + Focal Loss"
-    - "GPU2: Elliptic + Focal Loss"
-    - "GPU3: Reddit + BCE (baseline)"
-    - "GPU4: Elliptic + BCE (baseline)"
-
+  description: "恢复代码并验证基线"
+  started: 2026-03-19T15:35:00+08:00
+  
 next_steps:
   - step: 1
-    action: "文献调研 #1 - 图 Transformer 最新进展"
-    status: "COMPLETED"
-    result: "发现 Exphormer, SFi-Former, TransGAD, TSAD"
-  - step: 2
-    action: "文献调研 #2 - 详细技术调研"
-    status: "COMPLETED"
-    result: "生成 literature_review_transformer_innovations.md"
-  - step: 3
-    action: "实现 Focal Loss"
-    status: "COMPLETED"
-    result: "已集成到 run.py，Git commit dfa8473"
-  - step: 4
-    action: "在 Reddit/Elliptic 验证 Focal Loss 效果"
+    action: "完全恢复代码到正确版本"
     status: "IN_PROGRESS"
-    notes: "4 GPU 并行实验运行中"
-  - step: 5
-    action: "分析实验结果，决定下一步"
+  - step: 2
+    action: "验证基线性能 (AUC 0.87+)"
     status: "PENDING"
-  - step: 6
-    action: "实现 Exphormer 稀疏注意力"
+  - step: 3
+    action: "在独立分支上实现创新"
     status: "PENDING"
-
-# ========== 资源状态 ==========
-resources:
-  hccs86:
-    status: "ONLINE"
-    available_gpus: [1, 2, 3, 4, 5]
 
 # ========== 经验教训 ==========
 lessons:
-  - "batch_size=512 对 Photo 效果最佳 (AUC 0.8764)"
-  - "seed 敏感性：Elliptic 最佳 seed=42，Reddit 最佳 seed=789"
-  - "多 GPU 并行实验效率高，可在 5 GPU 上同时运行不同配置"
-  - "重构损失监控重要 - 占比异常时模型可能崩溃"
-  - "Focal Loss 对类别不平衡数据集效果显著 (参考 ICCV 2017)"
-
-# ========== 时间线 ==========
-timeline:
-  - "2026-03-19 00:00: 复现阶段开始"
-  - "2026-03-19 12:55: 复现阶段完成 - 7/7 数据集达标"
-  - "2026-03-19 14:10: 创新探索阶段启动"
-  - "2026-03-19 14:20: 文献调研子代理 #1 完成"
-  - "2026-03-19 14:45: 文献调研子代理 #2 完成 - 详细技术报告"
-  - "2026-03-19 14:50: 开始实现 Focal Loss"
+  - "⚠️ 子代理修改代码需要严格审查"
+  - "应该在独立分支上实验，而不是 main 分支"
+  - "self.scale 应该是 att_size ** -0.5，不是 1"
+  - "创新实验应该在不破坏基线的前提下进行"

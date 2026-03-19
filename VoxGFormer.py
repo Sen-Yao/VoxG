@@ -27,7 +27,7 @@ class MultiHeadAttention(nn.Module):
         self.num_heads = num_heads
 
         self.att_size = att_size = hidden_size // num_heads
-        self.scale = 1
+        self.scale = att_size ** -0.5
 
         self.linear_q = nn.Linear(hidden_size, num_heads * att_size)
         self.linear_k = nn.Linear(hidden_size, num_heads * att_size)
@@ -173,9 +173,9 @@ class Discriminator(nn.Module):
 
 
 
-class GGADFormer(nn.Module):
+class VoxGFormer(nn.Module):
     def __init__(self, n_in, n_h, activation, args):
-        super(GGADFormer, self).__init__()
+        super(VoxGFormer, self).__init__()
 
         # 设置设备
         self.device = torch.device(f'cuda:{args.device}' if torch.cuda.is_available() and args.device >= 0 else 'cpu')

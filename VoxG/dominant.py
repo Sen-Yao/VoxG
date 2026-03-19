@@ -1,10 +1,9 @@
 import numpy as np
 import scipy.sparse as sp
 import torch
-import torch.nn as nn
 import wandb
 
-from model_ocgnn import Model
+from model_domaint import Model
 from utils import *
 
 from sklearn.metrics import roc_auc_score
@@ -15,12 +14,12 @@ from sklearn.metrics import  average_precision_score
 import argparse
 from tqdm import tqdm
 
-os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, [2]))
+os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, [1]))
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 # Set argument
 parser = argparse.ArgumentParser(description='')
 parser.add_argument('--dataset', type=str,
-                    default='t_finance')  #'questions_no_isolated 'BlogCatalog'  'Flickr'  'ACM'  'cora'  'citeseer'  'pubmed'
+                    default='t_finance')  # ' tolokers_no_isolated 'BlogCatalog'  'Flickr'  'ACM'  'cora'  'citeseer'  'pubmed'
 parser.add_argument('--lr', type=float)
 parser.add_argument('--weight_decay', type=float, default=0.0)
 parser.add_argument('--seed', type=int, default=0)
@@ -32,10 +31,8 @@ parser.add_argument('--subgraph_size', type=int, default=4)
 parser.add_argument('--readout', type=str, default='avg')  # max min avg  weighted_sum
 parser.add_argument('--auc_test_rounds', type=int, default=256)
 parser.add_argument('--negsamp_ratio', type=int, default=1)
-
 parser.add_argument('--train_rate', type=float, default=0.15)
-parser.add_argument('--method', type=str, default="OCGNN")
-
+parser.add_argument('--method', type=str, default="dominant")
 
 args = parser.parse_args()
 
@@ -46,10 +43,13 @@ if args.lr is None:
         args.lr = 5e-4
     elif args.dataset in ['reddit']:
         args.lr = 1e-3
-    elif args.dataset in ['elliptic']:
-        args.lr = 1e-3
     elif args.dataset in ['photo']:
-        args.lr = 1e-3
+        args.lr = 3e-3
+    elif args.dataset in ['elliptic']:
+        args.lr = 3e-3
+    elif args.dataset in ['tolokers']:
+        args.lr = 5e-4
+
 
 if args.num_epoch is None:
 
@@ -59,10 +59,25 @@ if args.num_epoch is None:
         args.num_epoch = 1500
     elif args.dataset in ['Amazon']:
         args.num_epoch = 800
-    if args.dataset in ['elliptic']:
-        args.num_epoch = 500
     elif args.dataset in ['photo']:
-        args.num_epoch = 600
+        args.num_epoch = 500
+    elif args.dataset in ['elliptic']:
+        args.num_epoch = 500
+    elif args.dataset in ['tolokers']:
+        args.num_epoch = 20
+
+run = wandb.init(
+    entity="HCCS",
+    # Set the wandb project where this run will be logged.
+    project="VoxG",
+    # Track hyperparameters and run metadata.
+    config=args,
+)
+
+wandb.define_metric("AUC", summary="max")
+wandb.define_metric("AP", summary="max")
+wandb.define_metric("AUC", summary="last")
+wandb.define_metric("AP", summary="last")
 
 batch_size = args.batch_size
 subgraph_size = args.subgraph_size
@@ -82,65 +97,15 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 
-def loss_func(emb):
-    """
-    Loss function for OCGNN
-
-    Parameters
-    ----------
-    emb : torch.Tensor
-        Embeddings.
-
-    Returns
-    -------
-    loss : torch.Tensor
-        Loss value.
-    score : torch.Tensor
-        Outlier scores of shape :math:`N` with gradients.
-    """
-    r = 0
-    beta = 0.5
-    warmup = 2
-    eps = 0.001
-    c = torch.zeros(args.embedding_dim)
-    dist = torch.sum(torch.pow(emb.cpu() - c, 2), 1)
-    score = dist - r ** 2
-    loss = r ** 2 + 1 / beta * torch.mean(torch.relu(score))
-
-    if warmup > 0:
-        with torch.no_grad():
-            warmup -= 1
-            r = torch.quantile(torch.sqrt(dist), 1 - beta)
-            c = torch.mean(emb, 0)
-            c[(abs(c) < eps) & (c < 0)] = -eps
-            c[(abs(c) < eps) & (c > 0)] = eps
-
-    return loss, score
-
-run = wandb.init(
-    entity="HCCS",
-    # Set the wandb project where this run will be logged.
-    project="GGADFormer",
-    # Track hyperparameters and run metadata.
-    config=args,
-)
-
-wandb.define_metric("AUC", summary="max")
-wandb.define_metric("AP", summary="max")
-wandb.define_metric("AUC", summary="last")
-wandb.define_metric("AP", summary="last")
 
 # Load and preprocess data
 adj, features, labels, all_idx, idx_train, idx_val, \
 idx_test, ano_label, str_ano_label, attr_ano_label, normal_label_idx, abnormal_label_idx = load_mat(args.dataset, train_rate=args.train_rate)
-
 if args.dataset in ['Amazon', 'tf_finace', 'reddit', 'elliptic']:
     features, _ = preprocess_features(features)
 else:
     features = features.todense()
-
-
-dgl_graph = adj_to_dgl_graph(adj)
+# dgl_graph = adj_to_dgl_graph(adj)
 
 nb_nodes = features.shape[0]
 ft_size = features.shape[1]
@@ -174,17 +139,11 @@ if torch.cuda.is_available():
     # idx_val = idx_val.cuda()
     # idx_test = idx_test.cuda()
 
-if torch.cuda.is_available():
-    b_xent = nn.BCEWithLogitsLoss(reduction='none', pos_weight=torch.tensor([args.negsamp_ratio]).cuda())
-else:
-    b_xent = nn.BCEWithLogitsLoss(reduction='none', pos_weight=torch.tensor([args.negsamp_ratio]))
-xent = nn.CrossEntropyLoss()
+
 cnt_wait = 0
 best = 1e9
 best_t = 0
 batch_num = nb_nodes // batch_size + 1
-
-
 import time
 # Train model
 with tqdm(total=args.num_epoch) as pbar:
@@ -196,38 +155,29 @@ with tqdm(total=args.num_epoch) as pbar:
         optimiser.zero_grad()
 
         # Train model
-        emb = model(features, adj)
-        emb = torch.squeeze(emb)[normal_label_idx]
-        # emb = torch.squeeze(emb)
-        loss, score = loss_func(emb)
-
+        loss, score = model(features, adj, normal_label_idx, idx_test)
+        # loss, score = model(features, adj, all_idx, idx_test)
         loss.backward()
         optimiser.step()
 
         # if epoch % 2 == 0:
-        #     logits = np.squeeze(score.cpu().detach().numpy())
-        #     auc = roc_auc_score(ano_label[normal_label_idx], logits)
-        #     print('Traininig {} AUC:{:.4f}'.format(args.dataset, auc))
-        #     AP = average_precision_score(ano_label[idx_train], logits, average='macro', pos_label=1, sample_weight=None)
-        #     print('Traininig AP:', AP)
-        if epoch % 5 == 0:
             # print("Epoch:", '%04d' % (epoch), "train_loss=", "{:.5f}".format(loss.item()))
-            model.eval()
-            emb = model(features, adj)
-            emb = torch.squeeze(emb)
-            loss, score = loss_func(emb)
-            # evaluation on the valid and test node
-            logits = np.squeeze(score[idx_test].cpu().detach().numpy())
-            auc = roc_auc_score(ano_label[idx_test], logits)
-            #print('Testing {} AUC:{:.4f}'.format(args.dataset, auc))
-            AP = average_precision_score(ano_label[idx_test], logits, average='macro', pos_label=1, sample_weight=None)
-            # print('Testing AP:', AP)
-            # print('Total time is', total_time)
-            wandb.log({ "AUC": auc.item(),
+
+        if epoch % 5 == 0:
+             model.eval()
+             # loss, score = model(features, adj, normal_label_idx, idx_test)
+             score = np.array(score.detach().cpu())
+             auc = roc_auc_score(ano_label[idx_test], score)
+             # print('Testing {} AUC:{:.4f}'.format(args.dataset, auc))
+             AP = average_precision_score(ano_label[idx_test], score, average='macro', pos_label=1, sample_weight=None)
+             # print('Testing AP:', AP)
+             wandb.log({ "AUC": auc.item(),
                             "AP": AP.item(),
                             "loss": loss}, step=epoch)
 
         end_time = time.time()
         total_time += end_time - start_time
         pbar.update(1)
-        pbar.set_postfix(loss=loss.item(), AUC=auc)
+        pbar.set_postfix(loss=loss.item(), AUC=auc, AP=AP)
+        # print('Total time is', total_time)
+
