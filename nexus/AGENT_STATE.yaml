@@ -1,5 +1,5 @@
 # Nexus Agent State - VoxG Project
-# Last updated: 2026-03-19 14:50 (Asia/Shanghai)
+# Last updated: 2026-03-19 14:49 (Asia/Shanghai)
 
 agent:
   name: Nexus
@@ -14,8 +14,9 @@ project:
   
 status:
   phase: "创新探索期"
-  progress: 30%
-  checkpoint: 2026-03-19T14:50:00+08:00
+  progress: 40%
+  checkpoint: 2026-03-19T14:49:00+08:00
+  git_commit: "dfa8473"
 
 # ========== 复现阶段结果（已完成） ==========
 reproduction_complete:
@@ -63,10 +64,15 @@ innovation_phase:
 
 # ========== 当前任务 ==========
 current_task:
-  id: "innovate-003"
-  description: "实现 Focal Loss 处理类别不平衡"
-  started: 2026-03-19T14:50:00+08:00
-  
+  id: "innovate-004"
+  description: "验证 Focal Loss 效果 (Reddit/Elliptic 对比实验)"
+  started: 2026-03-19T14:49:00+08:00
+  experiments_running:
+    - "GPU1: Reddit + Focal Loss"
+    - "GPU2: Elliptic + Focal Loss"
+    - "GPU3: Reddit + BCE (baseline)"
+    - "GPU4: Elliptic + BCE (baseline)"
+
 next_steps:
   - step: 1
     action: "文献调研 #1 - 图 Transformer 最新进展"
@@ -78,12 +84,16 @@ next_steps:
     result: "生成 literature_review_transformer_innovations.md"
   - step: 3
     action: "实现 Focal Loss"
-    status: "IN_PROGRESS"
-    notes: "最高优先级，实现简单，预期收益高"
+    status: "COMPLETED"
+    result: "已集成到 run.py，Git commit dfa8473"
   - step: 4
     action: "在 Reddit/Elliptic 验证 Focal Loss 效果"
-    status: "PENDING"
+    status: "IN_PROGRESS"
+    notes: "4 GPU 并行实验运行中"
   - step: 5
+    action: "分析实验结果，决定下一步"
+    status: "PENDING"
+  - step: 6
     action: "实现 Exphormer 稀疏注意力"
     status: "PENDING"
 

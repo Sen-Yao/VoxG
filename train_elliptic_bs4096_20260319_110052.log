@@ -1,0 +1,53 @@
+wandb: Currently logged in as: jerryyoursister (Senyao) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run wqu0zwyw
+wandb: Tracking run with wandb version 0.23.1
+wandb: Run data is saved locally in /root/gpufree-data/linziyao/VoxG/wandb/run-20260319_110056-wqu0zwyw
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run glorious-haze-82982
+wandb: ⭐️ View project at https://wandb.ai/HCCS/GGADFormer
+wandb: 🚀 View run at https://wandb.ai/HCCS/GGADFormer/runs/wqu0zwyw
+/root/gpufree-data/linziyao/VoxG/utils.py:60: RuntimeWarning: divide by zero encountered in power
+  d_inv_sqrt = np.power(rowsum, -0.5).flatten()
+Dataset:  elliptic
+Using device: cuda:0
+CUDA device name: NVIDIA L40
+CUDA device memory: 44.4 GB
+Training Counter({0: 4183, 1: 473})
+Test Counter({0: 33616, 1: 3636})
+Training rate 1
+Tokenizating
+Start training! Total epochs: 150
+Training:   0%|          | 0/150 [00:00<?, ?it/s]显存不足!：CUDA out of memory. Tried to allocate 32.00 MiB (GPU 0; 44.39 GiB total capacity; 661.72 MiB already allocated; 10.56 MiB free; 682.00 MiB reserved in total by PyTorch) If reserved memory is >> allocated memory try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
+发送通知: 【VecFormer】出现显存不足!：CUDA out of memory. Tried to allocate 32.00 MiB (GPU 0; 44.39 GiB total capacity; 661.72 MiB already allocated; 10.56 MiB free; 682.00 MiB reserved in total by PyTorch) If reserved memory is >> allocated memory try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33mglorious-haze-82982[0m at: [34mhttps://wandb.ai/HCCS/GGADFormer/runs/wqu0zwyw[0m
+[1;34mwandb[0m: Find logs at: [1;35mwandb/run-20260319_110056-wqu0zwyw/logs[0m
+Traceback (most recent call last):
+  File "run.py", line 488, in <module>
+    train(args)
+  File "run.py", line 200, in train
+    emb, emb_combine, logits, outlier_emb, noised_normal_for_generation_emb, loss_rec, loss_ring = model(concated_input_features, None,
+  File "/root/gpufree-data/linziyao/.conda/envs/GGADFormer/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/root/gpufree-data/linziyao/VoxG/GGADFormer.py", line 255, in forward
+    emb = self.TransformerEncoder(input_tokens)
+  File "/root/gpufree-data/linziyao/VoxG/GGADFormer.py", line 235, in TransformerEncoder
+    emb, current_attention_weights = self.layers[i](emb)
+  File "/root/gpufree-data/linziyao/.conda/envs/GGADFormer/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/root/gpufree-data/linziyao/VoxG/GGADFormer.py", line 99, in forward
+    y, attention_weights = self.self_attention(y, y, y, attn_bias)
+  File "/root/gpufree-data/linziyao/.conda/envs/GGADFormer/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/root/gpufree-data/linziyao/VoxG/GGADFormer.py", line 70, in forward
+    x = x.transpose(1, 2).contiguous()  # [b, q_len, h, attn]
+torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 32.00 MiB (GPU 0; 44.39 GiB total capacity; 661.72 MiB already allocated; 10.56 MiB free; 682.00 MiB reserved in total by PyTorch) If reserved memory is >> allocated memory try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "run.py", line 495, in <module>
+    send_notification(f"【VecFormer】出现显存不足!：{e}")
+  File "/root/gpufree-data/linziyao/VoxG/utils.py", line 641, in send_notification
+    payload = {"text": content, "timestamp": str(datetime.now())}
+AttributeError: module 'datetime' has no attribute 'now'
