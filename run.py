@@ -15,7 +15,9 @@ import time
 import torch.utils.data as Data
 
 import wandb
-from visualization import create_tsne_visualization, visualize_attention_weights
+from visualization import create_tsne_visualization
+from losses.focal_loss import FocalLoss, AdaptiveFocalLoss
+, visualize_attention_weights
 from utils import send_notification
 
 # os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -130,7 +132,11 @@ def train(args):
     )
 
     # 损失函数设置
-    b_xent = nn.BCEWithLogitsLoss(reduction='none', pos_weight=torch.tensor([args.negsamp_ratio]).to(device))
+    if args.use_focal_loss:
+        b_xent = FocalLoss(alpha=args.focal_alpha, gamma=args.focal_gamma)
+        print(f'Using Focal Loss: alpha={args.focal_alpha}, gamma={args.focal_gamma}')
+    else:
+        b_xent = nn.BCEWithLogitsLoss(reduction='none', pos_weight=torch.tensor([args.negsamp_ratio]).to(device))
     xent = nn.CrossEntropyLoss()
 
     auc = 0
@@ -464,6 +470,10 @@ if __name__ == "__main__":
     parser.add_argument('--ring_R_min', type=float, default=0.3)
 
     parser.add_argument('--rec_loss_weight', type=float, default=1)
+    parser.add_argument('--use_focal_loss', type=bool, default=False, help='Use Focal Loss instead of BCE')
+    parser.add_argument('--focal_alpha', type=float, default=0.25, help='Focal Loss alpha parameter')
+    parser.add_argument('--focal_gamma', type=float, default=2.0, help='Focal Loss gamma parameter')
+
     parser.add_argument('--bce_loss_weight', type=float, default=1.0)
     parser.add_argument('--margin_loss_weight', type=float, default=0)
     parser.add_argument('--con_loss_weight', type=float, default=0.1)
