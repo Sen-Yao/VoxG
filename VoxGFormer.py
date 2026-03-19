@@ -7,6 +7,7 @@ import math
 
 from losses.contrastive_loss import GraphContrastiveLoss
 from check_gpu_memory import print_gpu_memory_usage, print_tensor_memory, clear_gpu_memory
+from models.prompt_tuning import PromptTuning, PromptTuningConfig, freeze_non_prompt_parameters, get_prompt_parameters
 
 
 class LoRALinear(nn.Module):
@@ -320,6 +321,28 @@ class VoxGFormer(nn.Module):
             print(f"  target: Q and V projections")
             print(f"===========================\n")
 
+        # Prompt Tuning configuration
+        self.use_prompt_tuning = getattr(args, "use_prompt_tuning", False)
+        self.num_prompt_tokens = getattr(args, "num_prompt_tokens", 10)
+        self.prompt_init_method = getattr(args, "prompt_init", "random")
+        self.prompt_dropout = getattr(args, "prompt_dropout", 0.0)
+        
+        if self.use_prompt_tuning:
+            print(f"\n=== Prompt Tuning Configuration ===")
+            print(f"  num_tokens: {self.num_prompt_tokens}")
+            print(f"  init_method: {self.prompt_init_method}")
+            print(f"  dropout: {self.prompt_dropout}")
+            print(f"====================================\n")
+            
+            self.prompt_tuning = PromptTuning(
+                num_tokens=self.num_prompt_tokens,
+                hidden_dim=args.embedding_dim,
+                init_method=self.prompt_init_method,
+                dropout=self.prompt_dropout
+            )
+        else:
+            self.prompt_tuning = None
+
         # Set batch size
         self.batchsize = getattr(args, 'batchsize', None)
         
@@ -372,9 +395,9 @@ class VoxGFormer(nn.Module):
         # Move model to device
         self.to(self.device)
 
-        # Freeze non-LoRA parameters if using LoRA
-        if self.use_lora:
-            self._freeze_non_lora_parameters()
+        # Freeze non-LoRA/Prompt Tuning parameters if using LoRA or Prompt Tuning
+        if self.use_lora or self.use_prompt_tuning:
+            self._freeze_non_peft_parameters()
             self._print_parameter_stats()
 
         # Contrastive learning module
@@ -403,6 +426,27 @@ class VoxGFormer(nn.Module):
         
         print(f"LoRA Mode: Frozen {frozen_count:,} params, trainable {trainable_count:,} params")
     
+    def _freeze_non_peft_parameters(self):
+        """Freeze all parameters except LoRA and Prompt Tuning parameters."""
+        frozen_count = 0
+        trainable_count = 0
+        
+        for name, param in self.named_parameters():
+            if 'lora_A' in name or 'lora_B' in name or 'soft_prompts' in name or 'prompt_tuning' in name:
+                param.requires_grad = True
+                trainable_count += param.numel()
+            else:
+                param.requires_grad = False
+                frozen_count += param.numel()
+        
+        mode = []
+        if self.use_lora:
+            mode.append("LoRA")
+        if self.use_prompt_tuning:
+            mode.append("Prompt Tuning")
+        mode_str = " + ".join(mode)
+        print(f"{mode_str} Mode: Frozen {frozen_count:,} params, trainable {trainable_count:,} params")
+    
     def _print_parameter_stats(self):
         """Print detailed parameter statistics."""
         total_params = 0
@@ -427,6 +471,15 @@ class VoxGFormer(nn.Module):
     def get_lora_parameters(self):
         """Get only LoRA parameters for optimizer."""
         return [p for n, p in self.named_parameters() if 'lora_A' in n or 'lora_B' in n]
+    
+    def get_prompt_parameters(self):
+        """Get only Prompt Tuning parameters for optimizer."""
+        return [p for n, p in self.named_parameters() if 'soft_prompts' in n or 'prompt_tuning' in n]
+    
+    def get_peft_parameters(self):
+        """Get all PEFT parameters (LoRA + Prompt Tuning) for optimizer."""
+        return [p for n, p in self.named_parameters() 
+                if 'lora_A' in n or 'lora_B' in n or 'soft_prompts' in n or 'prompt_tuning' in n]
     
     def merge_lora_weights(self):
         """Merge LoRA weights into base weights for inference."""
@@ -463,18 +516,39 @@ class VoxGFormer(nn.Module):
         """
         emb = self.token_projection(tokens)
         
+        # Apply Prompt Tuning: prepend soft prompts to the sequence
+        num_prompt_tokens = 0
+        if self.use_prompt_tuning and self.prompt_tuning is not None:
+            emb = self.prompt_tuning(emb)
+            num_prompt_tokens = self.prompt_tuning.num_tokens
+        
         # Add Cosine positional encoding
         if getattr(self.args, 'use_cosine_pe', True):
             seq_len = emb.size(1)
             pe = self._get_cosine_pe(seq_len, emb.size(-1), emb.device)
             emb = emb + pe.unsqueeze(0)  # broadcast to batch dimension
+        
         for i, l in enumerate(self.layers):
             emb, current_attention_weights = self.layers[i](emb)
             if i == len(self.layers) - 1: # Get attention from last layer
                 attention_weights = current_attention_weights
                 # Aggregate multi-head attention
                 agg_attention_weights = torch.mean(attention_weights, dim=1)
+        
         emb = self.final_ln(emb)
+
+        # Remove prompt outputs before attention-based pooling
+        # attention_weights shape: [batch, num_heads, seq_len, seq_len]
+        # agg_attention_weights: [batch, seq_len, seq_len]
+        
+        if num_prompt_tokens > 0:
+            # Remove prompt tokens from the sequence dimension
+            emb = emb[:, num_prompt_tokens:, :]
+            # Adjust attention weights to remove prompt tokens
+            # We want attention from real tokens, so slice the query dimension
+            agg_attention_weights = agg_attention_weights[:, num_prompt_tokens:, :]
+            # Also slice the key dimension to only include real tokens
+            agg_attention_weights = agg_attention_weights[:, :, num_prompt_tokens:]
 
         # attention_scores: [N, args.pp_k+1]
         attention_scores = agg_attention_weights[:, 0, :]

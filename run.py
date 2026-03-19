@@ -601,6 +601,12 @@ if __name__ == "__main__":
     parser.add_argument("--lora_rank", type=int, default=8, help="LoRA rank")
     parser.add_argument("--lora_alpha", type=float, default=16.0, help="LoRA scaling factor")
     parser.add_argument("--lora_dropout", type=float, default=0.0, help="LoRA dropout probability")
+    
+    # Prompt Tuning 参数
+    parser.add_argument("--use_prompt_tuning", type=str2bool, default=False, help="Use Prompt Tuning for parameter-efficient fine-tuning")
+    parser.add_argument("--num_prompt_tokens", type=int, default=10, help="Number of soft prompt tokens")
+    parser.add_argument("--prompt_init", type=str, default="random", choices=["random", "uniform", "class_specific"], help="Prompt initialization method")
+    parser.add_argument("--prompt_dropout", type=float, default=0.0, help="Dropout probability for prompt tokens")
 
     
     # VoxG SPSE MVP 参数
