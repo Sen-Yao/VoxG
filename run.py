@@ -596,6 +596,12 @@ if __name__ == "__main__":
     parser.add_argument('--curriculum_step_epochs', type=int, default=50, help='Epochs per step for step strategy')
     parser.add_argument('--curriculum_exp_gamma', type=float, default=0.02, help='Gamma for exp strategy')
 
+    # LoRA arguments
+    parser.add_argument("--use_lora", type=str2bool, default=False, help="Use LoRA (Low-Rank Adaptation) for fine-tuning")
+    parser.add_argument("--lora_rank", type=int, default=8, help="LoRA rank")
+    parser.add_argument("--lora_alpha", type=float, default=16.0, help="LoRA scaling factor")
+    parser.add_argument("--lora_dropout", type=float, default=0.0, help="LoRA dropout probability")
+
     
     # VoxG SPSE MVP 参数
     parser.add_argument('--use_spse_mvp', type=str2bool, default=False, help='[VoxG MVP] Enable SPSE triangle counting (fast validation)')
