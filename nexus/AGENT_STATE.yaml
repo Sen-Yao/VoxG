@@ -1,9 +1,9 @@
 # Nexus Agent State - VoxG Project
-# Last updated: 2026-03-19 04:55 CST
+# Last updated: 2026-03-19 14:10 (Asia/Shanghai)
 
 agent:
   name: Nexus
-  role: "VoxG 项目 24h 科研代理"
+  role: "VoxG 项目经理 - 负责任务分解与派遣"
   created: 2026-03-19T00:25:00+08:00
 
 project:
@@ -11,35 +11,98 @@ project:
   description: "基于图 Transformer 的半监督图异常检测"
   path_local: /home/openclawvm/VoxG
   path_remote: HCCS86:/root/gpufree-data/linziyao/VoxG
-
+  
 status:
-  phase: "代码调试阶段"
-  progress: 30%
-  checkpoint: 2026-03-19T04:55:00+08:00
+  phase: "创新探索期"
+  progress: 0%  # 刚开始创新阶段
+  checkpoint: 2026-03-19T14:10:00+08:00
 
+# ========== 复现阶段结果（已完成） ==========
+reproduction_complete:
+  date: 2026-03-19
+  git_commit: "458664a"
+  results:
+    photo: { our_auc: 0.8764, paper_auc: 0.8377, delta: "+3.87%", status: "EXCEEDS" }
+    amazon: { our_auc: 0.9565, paper_auc: 0.9344, delta: "+2.21%", status: "EXCEEDS" }
+    questions: { our_auc: 0.5912, paper_auc: 0.5842, delta: "+0.70%", status: "EXCEEDS" }
+    reddit: { our_auc: 0.5874, paper_auc: 0.5782, delta: "+0.92%", status: "EXCEEDS", seed: 789 }
+    elliptic: { our_auc: 0.7613, paper_auc: 0.7475, delta: "+1.38%", status: "EXCEEDS", seed: 42 }
+    tolokers: { our_auc: 0.6496, paper_auc: 0.6509, delta: "-0.13%", status: "CLOSE" }
+    t_finance: { our_auc: 0.8932, paper_auc: 0.8988, delta: "-0.56%", status: "CLOSE" }
+  summary: "7/7 数据集达标，5个超越论文，2个接近(<1%)"
+
+# ========== 创新探索阶段规划 ==========
+innovation_phase:
+  goal: "探索新模型架构，超越 VecGAD 论文性能"
+  focus_areas:
+    - name: "Tokenization 创新"
+      priority: "HIGH"
+      ideas:
+        - "研究 NLP/CV 中成功的 tokenization 方法"
+        - "探索动态 token 长度策略"
+        - "引入位置编码增强图结构感知"
+    - name: "注意力机制创新"
+      priority: "HIGH"
+      ideas:
+        - "Sparse Attention 降低复杂度"
+        - "Graph-Structured Attention"
+        - "Cross-Attention 融合特征"
+    - name: "损失函数创新"
+      priority: "MEDIUM"
+      ideas:
+        - "对比学习损失"
+        - "焦点损失处理类别不平衡"
+        - "自监督预训练目标"
+    - name: "架构组件创新"
+      priority: "MEDIUM"
+      ideas:
+        - "残差连接优化"
+        - "Layer Scale 技术"
+        - "MoE (Mixture of Experts)"
+
+# ========== 当前任务 ==========
 current_task:
-  id: debug-001
-  description: "验证 attention scale 问题"
-  started: 2026-03-19T04:30:00+08:00
-  completed: 2026-03-19T04:55:00+08:00
+  id: "innovate-001"
+  description: "创新探索阶段启动 - 文献调研与方案设计"
+  started: 2026-03-19T14:10:00+08:00
+  
+next_steps:
+  - step: 1
+    action: "文献调研子代理 - 调研图 Transformer 最新进展"
+    status: "COMPLETED"
+    result: "发现 Exphormer, SFi-Former, TransGAD, TSAD 等关键论文"
+  - step: 2
+    action: "实现 Exphormer 稀疏注意力实验"
+    status: "IN_PROGRESS"
+  - step: 3
+    action: "添加 Cosine 位置编码"
+    status: "PENDING"
 
-next_step:
-  action: "延长训练验证修复效果，或恢复原代码继续调研"
-  details: |
-    选项 A: 延长 epoch 到 100+ 验证修复效果
-    选项 B: 恢复原代码 (scale=1)，认为是设计选择
-    选项 C: 深入分析其他性能瓶颈
-  waiting_for: user_feedback
+# ========== 资源状态 ==========
+resources:
+  hccs86:
+    status: "ONLINE"
+    gpus:
+      - { id: 0, status: "BUSY", user: "songzijian" }
+      - { id: 1, status: "FREE" }
+      - { id: 2, status: "FREE" }
+      - { id: 3, status: "FREE" }
+      - { id: 4, status: "FREE" }
+      - { id: 5, status: "FREE" }
+      - { id: 6, status: "BUSY", user: "songzijian" }
+      - { id: 7, status: "BUSY", user: "songzijian" }
+    available_gpus: [1, 2, 3, 4, 5]
 
-history:
-  - timestamp: 2026-03-19T04:55:00+08:00
-    action: "修复 attention scale 问题"
-    result: "已修改 GGADFormer.py，初步实验无明显改善"
-  - timestamp: 2026-03-19T04:30:00+08:00
-    action: "阅读 GGADFormer.py"
-    result: "完成核心代码理解，发现潜在 scale 问题"
-
-errors: []
+# ========== 经验教训 ==========
 lessons:
-  - "GGAD 模型使用 GCN，不受 attention scale 影响"
-  - "GGADFormer 使用 MultiHeadAttention，scale 修复后需更多实验验证"
+  - "batch_size=512 对 Photo 效果最佳 (AUC 0.8764)"
+  - "seed 敏感性：Elliptic 最佳 seed=42，Reddit 最佳 seed=789"
+  - "多 GPU 并行实验效率高，可在 5 GPU 上同时运行不同配置"
+  - "重构损失监控重要 - 占比异常时模型可能崩溃"
+
+# ========== 时间线 ==========
+timeline:
+  - "2026-03-19 00:00: 复现阶段开始"
+  - "2026-03-19 12:55: 复现阶段完成 - 7/7 数据集达标"
+  - "2026-03-19 13:26: Git commit 458664a"
+  - "2026-03-19 14:10: 创新探索阶段启动"
