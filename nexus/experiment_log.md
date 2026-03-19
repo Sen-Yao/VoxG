@@ -123,3 +123,107 @@ _更新时间：2026-03-19 16:06_
 
 ---
 _更新时间：2026-03-19 17:31_
+
+---
+
+### Cosine Position Encoding 实现 - 2026-03-19 22:15
+
+#### 实验目的
+为 VoxGFormer 添加显式的位置编码，使模型能够区分不同 hop 的 token。
+
+#### 实现细节
+
+**1. 添加  方法**
+
+
+**2. 修改  方法**
+在 token projection 后添加位置编码：
+
+
+**3. 添加命令行参数**
+- : 是否使用位置编码 (default=True)
+- : 位置编码类型 (default='cosine')
+
+#### 测试结果
+
+| 配置 | 数据集 | Epochs | 最终 AUC | 最终 AP | 训练时间 |
+|------|--------|--------|---------|---------|---------|
+| Cosine PE | Photo | 50 | 0.6229 | 0.1358 | 12.7s |
+
+**AUC 趋势**:
+- Epoch 12: 0.5256
+- Epoch 22: 0.5783
+- Epoch 32: 0.6032
+- Epoch 42: 0.6229
+- Epoch 50: 0.6229
+
+#### 技术说明
+- 位置编码基于 TransGAD 论文的方法
+- 使用 sin/cos 函数生成位置编码
+- 位置编码在 token projection 后、transformer encoder 前添加
+- 保持向后兼容： 默认为 True
+
+#### Git Commit
+- Hash: 
+- Message: feat: Add Cosine Position Encoding to VoxGFormer
+
+#### 下一步
+- [ ] 对比实验：关闭 PE vs 开启 PE (100 epochs)
+- [ ] 测试 Learnable PE 类型
+- [ ] 在其他数据集上验证效果
+
+---
+_更新时间：2026-03-19 22:15_
+
+
+---
+
+### Cosine Position Encoding 实现 - 2026-03-19 22:15
+
+#### 实验目的
+为 VoxGFormer 添加显式的位置编码，使模型能够区分不同 hop 的 token。
+
+#### 实现细节
+
+**1. 添加 `_get_cosine_pe` 方法**
+- 使用 sin/cos 函数生成位置编码
+- 位置编码维度与 embedding 维度相同
+
+**2. 修改 `TransformerEncoder` 方法**
+- 在 token projection 后添加位置编码
+- 通过 `use_cosine_pe` 参数控制是否启用
+
+**3. 添加命令行参数**
+- `--use_cosine_pe`: 是否使用位置编码 (default=True)
+- `--pe_type`: 位置编码类型 (default='cosine')
+
+#### 测试结果
+
+| 配置 | 数据集 | Epochs | 最终 AUC | 最终 AP | 训练时间 |
+|------|--------|--------|---------|---------|---------|
+| Cosine PE | Photo | 50 | 0.6229 | 0.1358 | 12.7s |
+
+**AUC 趋势**:
+- Epoch 12: 0.5256
+- Epoch 22: 0.5783
+- Epoch 32: 0.6032
+- Epoch 42: 0.6229
+- Epoch 50: 0.6229
+
+#### 技术说明
+- 位置编码基于 TransGAD 论文的方法
+- 使用 sin/cos 函数生成位置编码
+- 位置编码在 token projection 后、transformer encoder 前添加
+- 保持向后兼容：`use_cosine_pe` 默认为 True
+
+#### Git Commit
+- Hash: `27340bc0c77a94f742b3aa4bddfe105d2f1719e4`
+- Message: "feat: Add Cosine Position Encoding to VoxGFormer"
+
+#### 下一步
+- [ ] 对比实验：关闭 PE vs 开启 PE (100 epochs)
+- [ ] 测试 Learnable PE 类型
+- [ ] 在其他数据集上验证效果
+
+---
+_更新时间：2026-03-19 22:15_

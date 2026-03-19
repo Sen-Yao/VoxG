@@ -1,67 +1,78 @@
 # Nexus Agent State - VoxG Project
-# Last updated: 2026-03-19 20:40 (Asia/Shanghai)
+# Last updated: 2026-03-19 23:31 (Asia/Shanghai)
 
 agent:
   name: Nexus
   role: "VoxG 项目经理"
   
 status:
-  phase: "MFMGAD 集成调试"
-  progress: 78%
-  blocked: true
-  blocked_reason: "Baseline 性能异常，需用户指导"
-  last_report: "2026-03-19 20:40"
-  last_action: "MFMGAD 集成完成，但测试发现 baseline 异常"
-
-# ========== 当前任务 ==========
-current_task:
-  name: "MFMGAD 集成与调试"
-  description: "集成 Masked Frequency Modeling 模块"
-  status: "DEBUGGING"
-  result: "代码修复完成，但 baseline 性能异常"
-
-# ========== 关键问题 ==========
-issues:
-  - issue: "Baseline AUC 异常低 (0.52 vs 预期 0.58)"
-    details:
-      - "已恢复到 commit cfbaeaa 的代码"
-      - "禁用 MFMGAD 后仍然只有 AUC 0.52"
-      - "之前的日志显示 200 epochs 时 AUC 0.58"
-    possible_causes:
-      - "epoch 数量不够（测试只跑了 100 epochs）"
-      - "随机种子差异"
-      - "数据预处理问题"
-    next_step: "需要用户确认是否继续调试或使用更多 epochs 测试"
-
-# ========== MFMGAD 集成状态 ==========
-mfmgad_status:
-  module_created: true
-  file: "mfmgad_module.py"
-  voxgformer_modified: true
-  run_py_modified: true
-  fixes_applied:
-    - "修复返回值解包问题 (line 378)"
-    - "添加 loss_mfmgad 到总损失"
-  test_result: "代码运行正常，但 AUC 只有 0.48"
-
-# ========== 完成的工作 ==========
-achievements:
-  literature_review:
-    status: "COMPLETED"
+  phase: "创新探索期"
+  progress: 85%
+  
+# ========== Phase 1 进度 ==========
+phase1_implementations:
+  flash_attention:
+    status: "✅ COMPLETED"
+    commit: "79383dd"
     
-  implementations:
-    - name: "MFMGAD 模块"
-      file: "mfmgad_module.py"
-      status: "INTEGRATED"
-      result: "待调优"
-      
+  focal_loss:
+    status: "✅ COMPLETED"
+    result: "Reddit +1.3%, Elliptic +6.9%"
+    
+  curriculum_learning:
+    status: "✅ COMPLETED"
+    commit: "0a9fd55"
+    result: "Reddit best AUC 0.5397 vs baseline 0.5377 (+0.37%)"
+    
+  mfmgad:
+    status: "⚠️ PARTIAL"
+    issue: "模块已创建但未集成到 VoxGFormer.py"
+    
+  prompt_tuning:
+    status: "📋 PENDING"
+    
+  lora_adapter:
+    status: "📋 PENDING"
+
+# ========== 实验结果汇总 ==========
+experiments:
+  successful:
+    - name: "Flash Attention"
+      benefit: "训练速度 2-4x"
     - name: "Focal Loss"
-      status: "TESTED"
-      result: "+0.5% (微弱)"
+      benefit: "Reddit +1.3%, Elliptic +6.9%"
+    - name: "课程学习"
+      benefit: "Reddit +0.37%, loss 降低 7%"
       
-    - name: "对比学习"
-      status: "TESTED"
-      result: "失败"
+  not_effective:
+    - name: "MFMGAD"
+      result: "Reddit 0.55 vs baseline 0.55 (无显著差异)"
+      note: "且存在集成问题"
+      
+  pending:
+    - name: "Prompt Tuning"
+    - name: "LoRA/Adapter"
+
+# ========== Git 状态 ==========
+git:
+  latest: "0a9fd55"
+  branch: "main"
+  ahead_of_origin: 17 commits
+  uncommitted:
+    - "nexus/experiment_log.md"
+    - "train_*.log files"
+
+# ========== 服务器状态 ==========
+server:
+  name: "HCCS86"
+  user: "linziyao"
+  project_path: "/home/linziyao/VoxG"
+  gpu_available: [1, 2, 3, 4, 5]  # GPU 0,6,7 被占用
 
 # ========== 下一步 ==========
-next_step: "等待用户反馈，决定是否需要更多 epochs 或其他调试方向"
+next_steps:
+  - action: "决定 MFMGAD 或 Prompt Tuning/LoRA"
+    priority: "HIGH"
+    requires_user_input: true
+  - action: "Git push (17 commits ahead)"
+    priority: "MEDIUM"
