@@ -1,75 +1,71 @@
 # Nexus Agent State - VoxG Project
-# Last updated: 2026-03-19 15:35 (Asia/Shanghai)
+# Last updated: 2026-03-19 16:05 (Asia/Shanghai)
 
 agent:
   name: Nexus
-  role: "VoxG 项目经理 - 负责任务分解与派遣"
+  role: "VoxG 项目经理"
   created: 2026-03-19T00:25:00+08:00
 
 project:
   name: VoxG
-  description: "基于图 Transformer 的半监督图异常检测"
-  path_local: /home/openclawvm/VoxG
   path_remote: HCCS86:/root/gpufree-data/linziyao/VoxG
   
 status:
-  phase: "创新探索期 - 调试中"
-  progress: 25%
-  checkpoint: 2026-03-19T15:35:00+08:00
-  issue: "子代理修改导致代码回归，正在恢复"
+  phase: "创新探索期"
+  progress: 35%
+  note: "稀疏注意力实验失败，需探索新方向"
 
-# ========== 复现阶段结果（已完成） ==========
-reproduction_complete:
-  date: 2026-03-19
-  results:
-    photo: { our_auc: 0.8764, paper_auc: 0.8377, delta: "+3.87%", status: "EXCEEDS" }
-    amazon: { our_auc: 0.9565, paper_auc: 0.9344, delta: "+2.21%", status: "EXCEEDS" }
-    questions: { our_auc: 0.5912, paper_auc: 0.5842, delta: "+0.70%", status: "EXCEEDS" }
-    reddit: { our_auc: 0.5874, paper_auc: 0.5782, delta: "+0.92%", status: "EXCEEDS", seed: 789 }
-    elliptic: { our_auc: 0.7613, paper_auc: 0.7475, delta: "+1.38%", status: "EXCEEDS", seed: 42 }
-    tolokers: { our_auc: 0.6496, paper_auc: 0.6509, delta: "-0.13%", status: "CLOSE" }
-    t_finance: { our_auc: 0.8932, paper_auc: 0.8988, delta: "-0.56%", status: "CLOSE" }
-  summary: "7/7 数据集达标"
+# ========== 实验结果汇总 ==========
+experiments:
+  # ✅ 已验证失败的方向（不要重复）
+  failed:
+    focal_loss:
+      dataset: "Reddit"
+      result: "AUC +0.5%（微弱）"
+      conclusion: "类别不平衡不是主要问题"
+      
+    position_encoding:
+      datasets: ["Photo", "Reddit"]
+      results:
+        - "Cosine PE: -32.5%"
+        - "Learnable PE: -27.9%"
+      conclusion: "hop序列已隐式编码位置，显式PE引入噪声"
+      
+    sparse_attention:
+      dataset: "Photo"
+      result: "AUC 0.60 vs baseline 0.87 (-31%)"
+      config: "use_sparse_attention=True"
+      conclusion: "当前实现有害，需要重新设计"
+      
+  # ✅ 部分成功
+  partial_success:
+    feature_enhancement:
+      dataset: "Tolokers (低维)"
+      result: "AUC 0.41 → 0.58 (+41%)"
+      limitation: "仅对低维数据集有效"
 
-# ========== 创新探索阶段 ==========
-innovation_phase:
-  goal: "探索新模型架构，超越 VecGAD 论文性能"
-  
-  completed_tasks:
-    - name: "文献调研 #1"
-      result: "发现 Exphormer, SFi-Former, TransGAD 等关键论文"
-    - name: "文献调研 #2"
-      result: "生成 detailed 文献调研报告"
-    - name: "Focal Loss 实现"
-      result: "创建 losses/focal_loss.py"
-    - name: "Cosine PE 实验 (子代理)"
-      result: "AUC 0.59-0.63，低于基线"
-  
-  issues_found:
-    - "子代理修改 GGADFormer.py 导致 self.scale = 1"
-    - "子代理添加了位置编码代码但未正确实现"
-    - "需要恢复到正确版本后重新实验"
-
-# ========== 当前任务 ==========
-current_task:
-  id: "innovate-004"
-  description: "恢复代码并验证基线"
-  started: 2026-03-19T15:35:00+08:00
-  
+# ========== 当前运行 ==========
+running:
+  - dataset: "tolokers"
+    pid: 3822224
+    config: "contrast_weight=0.5, consistency_weight=1.0"
+    started: "16:01"
+    
+# ========== 下一步 ==========
 next_steps:
-  - step: 1
-    action: "完全恢复代码到正确版本"
-    status: "IN_PROGRESS"
-  - step: 2
-    action: "验证基线性能 (AUC 0.87+)"
-    status: "PENDING"
-  - step: 3
-    action: "在独立分支上实现创新"
-    status: "PENDING"
+  - action: "分析 sparse attention 失败原因"
+    priority: "HIGH"
+    
+  - action: "尝试对比学习损失（CVGAD 风格）"
+    priority: "HIGH"
+    expected_gain: "+2-5% AUC"
+    
+  - action: "提交当前进度到 Git"
+    priority: "MEDIUM"
 
-# ========== 经验教训 ==========
-lessons:
-  - "⚠️ 子代理修改代码需要严格审查"
-  - "应该在独立分支上实验，而不是 main 分支"
-  - "self.scale 应该是 att_size ** -0.5，不是 1"
-  - "创新实验应该在不破坏基线的前提下进行"
+# ========== Git 状态 ==========
+git:
+  latest_commit: "9f26d23 ✨ 实现 Exphormer 风格稀疏注意力"
+  uncommitted: ["nexus/experiment_log.md"]
+  untracked: ["VoxGFormer.py.bak"]
+  ahead_of_origin: 9
