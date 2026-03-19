@@ -507,6 +507,10 @@ if __name__ == "__main__":
     parser.add_argument('--orthogonalize_tokens', type=str2bool, default=False, help='[VoxG] Enable orthogonalization in tokenization (Gram-Schmidt)')
     parser.add_argument('--orthogonal_beta', type=float, default=0.5, help='[VoxG] Soft orthogonalization strength (1.0=hard, 0.0=none)')
     parser.add_argument('--lambda_orthogonal', type=float, default=0.0, help='[VoxG] Orthogonal regularization loss weight (建议：1.0-10.0)')
+    parser.add_argument('--use_mfmgad', type=lambda x: x.lower() == 'true', default=True, help='[VoxG] Use MFMGAD module')
+    parser.add_argument('--mfmgad_loss_weight', type=float, default=0.1, help='[VoxG] MFMGAD consistency loss weight')
+    parser.add_argument('--num_prompts', type=int, default=8, help='[VoxG] Number of frequency prompts')
+    parser.add_argument('--mask_ratio', type=float, default=0.25, help='[VoxG] Mask ratio for MFMGAD')
 
     # 对比学习参数
     parser.add_argument('--use_contrastive', type=str2bool, default=False, help='Use contrastive learning loss')
