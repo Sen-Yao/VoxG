@@ -22,8 +22,9 @@ class FeedForwardNetwork(nn.Module):
         return x
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, hidden_size, attention_dropout_rate, num_heads):
+    def __init__(self, hidden_size, attention_dropout_rate, num_heads, return_attention_weights=False):
         super(MultiHeadAttention, self).__init__()
+        self.return_attention_weights = return_attention_weights
 
         self.num_heads = num_heads
 
@@ -50,23 +51,29 @@ class MultiHeadAttention(nn.Module):
         v = self.linear_v(v).view(batch_size, -1, self.num_heads, d_v)
 
         q = q.transpose(1, 2)                  # [b, h, q_len, d_k]
+        k = k.transpose(1, 2)                  # [b, h, k_len, d_k]
         v = v.transpose(1, 2)                  # [b, h, v_len, d_v]
-        k = k.transpose(1, 2).transpose(2, 3)  # [b, h, d_k, k_len]
 
-        # Scaled Dot-Product Attention.
-        # Attention(Q, K, V) = softmax((QK^T)/sqrt(d_k))V
-        q = q * self.scale
-        x = torch.matmul(q, k)  # [b, h, q_len, k_len]
-        if attn_bias is not None:
-            x = x + attn_bias
-
-
-        # 这里的 x 就是经过 softmax 归一化的注意力权重
-        attention_weights = torch.softmax(x, dim=3)
-
-        x = self.att_dropout(attention_weights) # Dropout 应用于注意力权重
-
-        x = x.matmul(v)  # [b, h, q_len, attn]
+        if not self.return_attention_weights:
+            # Use Flash Attention via PyTorch SDPA for speed and memory efficiency
+            attn_mask = attn_bias
+            x = torch.nn.functional.scaled_dot_product_attention(
+                q, k, v,
+                attn_mask=attn_mask,
+                dropout_p=self.att_dropout.p if self.training else 0.0,
+                scale=self.scale
+            )
+            attention_weights = None
+        else:
+            # Compute attention explicitly when we need to return weights
+            k_t = k.transpose(2, 3)  # [b, h, d_k, k_len]
+            q_scaled = q * self.scale
+            attn_scores = torch.matmul(q_scaled, k_t)  # [b, h, q_len, k_len]
+            if attn_bias is not None:
+                attn_scores = attn_scores + attn_bias
+            attention_weights = torch.softmax(attn_scores, dim=3)
+            x = self.att_dropout(attention_weights)
+            x = x.matmul(v)  # [b, h, q_len, attn]
 
         x = x.transpose(1, 2).contiguous()  # [b, q_len, h, attn]
         x = x.view(batch_size, -1, self.num_heads * d_v)
@@ -78,13 +85,14 @@ class MultiHeadAttention(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    def __init__(self, hidden_size, ffn_size, dropout_rate, attention_dropout_rate, num_heads):
+    def __init__(self, hidden_size, ffn_size, dropout_rate, attention_dropout_rate, num_heads, return_attention_weights=False):
         super(EncoderLayer, self).__init__()
 
         self.self_attention_norm = nn.LayerNorm(hidden_size)
 
         self.self_attention = MultiHeadAttention(
-            hidden_size, attention_dropout_rate, num_heads)
+            hidden_size, attention_dropout_rate, num_heads,
+            return_attention_weights=return_attention_weights)
 
         self.self_attention_dropout = nn.Dropout(dropout_rate)
 
@@ -197,8 +205,14 @@ class VoxGFormer(nn.Module):
         self.n_in = n_in
 
         # Graph Transformer
-        encoders = [EncoderLayer(args.embedding_dim, args.GT_ffn_dim, args.GT_dropout, args.GT_attention_dropout, args.GT_num_heads)
-                    for _ in range(args.GT_num_layers)]
+        encoders = []
+        for i in range(args.GT_num_layers):
+            return_attn = (i == args.GT_num_layers - 1)
+            encoders.append(EncoderLayer(
+                args.embedding_dim, args.GT_ffn_dim, args.GT_dropout, 
+                args.GT_attention_dropout, args.GT_num_heads,
+                return_attention_weights=return_attn
+            ))
         self.layers = nn.ModuleList(encoders)
         self.final_ln = nn.LayerNorm(args.embedding_dim)
         self.read_out = nn.Linear(args.embedding_dim, args.embedding_dim)

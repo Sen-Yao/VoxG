@@ -9,7 +9,6 @@ from sklearn.metrics import roc_auc_score
 import random
 import dgl
 from sklearn.metrics import average_precision_score
-from structure_reconstruction import compute_degree_loss, compute_structure_loss
 import argparse
 from tqdm import tqdm
 import time
@@ -245,14 +244,6 @@ def train(args):
                 # 对比学习损失
                 if args.use_contrastive:
                     loss = loss + args.contrastive_weight * loss_contrastive
-
-                # 结构重构损失
-                if args.structure_loss_weight > 0:
-                    if args.structure_loss_type == "degree":
-                        loss_structure = compute_degree_loss(emb[0], adj)
-                    else:
-                        loss_structure = compute_structure_loss(emb[0], adj)
-                    loss = loss + args.structure_loss_weight * loss_structure
 
                 loss.backward()
                 optimizer.step()
@@ -516,11 +507,6 @@ if __name__ == "__main__":
     parser.add_argument('--orthogonalize_tokens', type=str2bool, default=False, help='[VoxG] Enable orthogonalization in tokenization (Gram-Schmidt)')
     parser.add_argument('--orthogonal_beta', type=float, default=0.5, help='[VoxG] Soft orthogonalization strength (1.0=hard, 0.0=none)')
     parser.add_argument('--lambda_orthogonal', type=float, default=0.0, help='[VoxG] Orthogonal regularization loss weight (建议：1.0-10.0)')
-
-    
-    # 结构重构参数
-    parser.add_argument('--structure_loss_weight', type=float, default=0.0, help='Structure reconstruction loss weight')
-    parser.add_argument('--structure_loss_type', type=str, default='degree', choices=['degree', 'edge'], help='Type of structure loss')
 
     # 对比学习参数
     parser.add_argument('--use_contrastive', type=str2bool, default=False, help='Use contrastive learning loss')
