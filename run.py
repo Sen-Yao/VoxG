@@ -580,6 +580,12 @@ if __name__ == "__main__":
     parser.add_argument('--use_mfmgad', type=lambda x: x.lower() == 'true', default=True, help='[VoxG] Use MFMGAD module')
     parser.add_argument('--mfmgad_loss_weight', type=float, default=0.1, help='[VoxG] MFMGAD consistency loss weight')
     parser.add_argument('--num_prompts', type=int, default=8, help='[VoxG] Number of frequency prompts')
+    # PromptGAD 参数
+    parser.add_argument("--tokenizer_temp", type=float, default=1.0, help="PromptGAD tokenizer temperature")
+    parser.add_argument("--tokenizer_hallucination_ratio", type=float, default=2.0, help="PromptGAD hallucination temperature ratio")
+    parser.add_argument("--hallucination_temp_distance_scale", type=float, default=0.0, help="PromptGAD dynamic temperature distance scale")
+    parser.add_argument("--ortho_weight", type=float, default=0.1, help="PromptGAD orthogonal loss weight")
+    parser.add_argument("--uniformity_weight", type=float, default=0.1, help="PromptGAD uniformity loss weight")
     parser.add_argument('--mask_ratio', type=float, default=0.25, help='[VoxG] Mask ratio for MFMGAD')
 
     # 对比学习参数
