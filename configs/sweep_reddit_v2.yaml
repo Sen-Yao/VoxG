@@ -1,0 +1,65 @@
+# Reddit Sweep V2 - 基于 reproduction.sh 参数微调
+# 目标: 在 reproduction.sh 基础上搜索更优配置
+# 预计时间: ~2小时
+
+program: run.py
+method: grid
+name: reddit_v2_reproduction_based
+
+parameters:
+  # 固定参数（来自 reproduction.sh）
+  dataset:
+    value: reddit
+  model_type:
+    value: VoxGFormer
+  batch_size:
+    value: 32768
+  num_epoch:
+    value: 150
+  train_rate:
+    value: 0.05
+  warmup_updates:
+    value: 50
+  peak_lr:
+    value: 0.0005
+  end_lr:
+    value: 0.0003
+  pp_k:
+    value: 6
+  ring_R_max:
+    value: 1
+  ring_R_min:
+    value: 0.3
+  outlier_beta:
+    value: 0.3
+  
+  # ===== 搜索参数 =====
+  # 4 个核心参数，围绕 reproduction.sh 值微调
+  progregate_alpha:
+    values: [0.5, 0.6, 0.7]      # reproduction.sh=0.6
+  
+  lambda_rec_emb:
+    values: [1.5, 2.0, 3.0]      # reproduction.sh=2.0
+  
+  ring_loss_weight:
+    values: [15, 20, 30]         # reproduction.sh=20
+  
+  rec_loss_weight:
+    values: [1.0, 2.0]           # reproduction.sh=1.0
+  
+  # 固定 tokenizer 参数
+  num_prompts:
+    value: 16
+  tokenizer_temp:
+    value: 0.5
+  tokenizer_hallucination_ratio:
+    value: 1.0
+  token_mode:
+    value: original
+  
+  # Seed
+  seed:
+    values: [0, 1, 2, 3, 4]
+
+# 总 runs: 3 * 3 * 3 * 2 * 5 = 270 runs
+# 8 GPU 并行，每 run ~3.5 分钟，预计 ~2 小时

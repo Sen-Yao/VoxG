@@ -52,7 +52,7 @@
 |------|------|------|
 | BCE Loss | 1.0 | 二分类异常检测 |
 | Reconstruction Loss | 1.0 | 输入重构约束 |
-| Ring Loss | 1.0 | 中心点对齐 |
+| Ring Loss | 0 (禁用) | 未使用 |
 | Contrastive Loss | 0.1 | 对比学习增强 |
 
 ### 2.3 训练流程

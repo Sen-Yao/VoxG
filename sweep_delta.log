@@ -1,0 +1,67 @@
+wandb: Starting wandb agent 🕵️
+2026-03-24 13:31:57,237 - wandb.wandb_agent - INFO - Running runs: []
+2026-03-24 13:31:58,927 - wandb.wandb_agent - INFO - Agent received command: run
+2026-03-24 13:31:58,927 - wandb.wandb_agent - INFO - Agent starting run with config:
+	batch_size: 32768
+	dataset: photo
+	device: 0
+	embedding_dim: 128
+	num_epoch: 150
+	num_prompts: 12
+	outlier_beta: 0.3
+	peak_lr: 0.0005
+	pp_k: 6
+	progregate_alpha: 0.2
+	rec_loss_weight: 5
+	seed: 0
+	token_mode: original
+	tokenizer_hallucination_ratio: 1.5
+	tokenizer_temp: 2
+2026-03-24 13:31:58,928 - wandb.wandb_agent - INFO - About to run command: /usr/bin/env python  --batch_size=32768 --dataset=photo --device=0 --embedding_dim=128 --num_epoch=150 --num_prompts=12 --outlier_beta=0.3 --peak_lr=0.0005 --pp_k=6 --progregate_alpha=0.2 --rec_loss_weight=5 --seed=0 --token_mode=original --tokenizer_hallucination_ratio=1.5 --tokenizer_temp=2
+/root/gpufree-data/linziyao/.conda/envs/GGADFormer/bin/python: can't find '__main__' module in ''
+2026-03-24 13:32:03,936 - wandb.wandb_agent - INFO - Running runs: ['616r71f3']
+2026-03-24 13:32:03,936 - wandb.wandb_agent - INFO - Cleaning up finished run: 616r71f3
+2026-03-24 13:32:05,090 - wandb.wandb_agent - INFO - Agent received command: run
+2026-03-24 13:32:05,090 - wandb.wandb_agent - INFO - Agent starting run with config:
+	batch_size: 32768
+	dataset: photo
+	device: 0
+	embedding_dim: 128
+	num_epoch: 150
+	num_prompts: 12
+	outlier_beta: 0.3
+	peak_lr: 0.0005
+	pp_k: 6
+	progregate_alpha: 0.2
+	rec_loss_weight: 5
+	seed: 0
+	token_mode: delta
+	tokenizer_hallucination_ratio: 1.5
+	tokenizer_temp: 2
+2026-03-24 13:32:05,091 - wandb.wandb_agent - INFO - About to run command: /usr/bin/env python  --batch_size=32768 --dataset=photo --device=0 --embedding_dim=128 --num_epoch=150 --num_prompts=12 --outlier_beta=0.3 --peak_lr=0.0005 --pp_k=6 --progregate_alpha=0.2 --rec_loss_weight=5 --seed=0 --token_mode=delta --tokenizer_hallucination_ratio=1.5 --tokenizer_temp=2
+/root/gpufree-data/linziyao/.conda/envs/GGADFormer/bin/python: can't find '__main__' module in ''
+2026-03-24 13:32:10,100 - wandb.wandb_agent - INFO - Running runs: ['h0z3ns7r']
+2026-03-24 13:32:10,101 - wandb.wandb_agent - INFO - Cleaning up finished run: h0z3ns7r
+2026-03-24 13:32:11,194 - wandb.wandb_agent - INFO - Agent received command: run
+2026-03-24 13:32:11,194 - wandb.wandb_agent - INFO - Agent starting run with config:
+	batch_size: 32768
+	dataset: photo
+	device: 0
+	embedding_dim: 128
+	num_epoch: 150
+	num_prompts: 12
+	outlier_beta: 0.3
+	peak_lr: 0.0005
+	pp_k: 6
+	progregate_alpha: 0.2
+	rec_loss_weight: 5
+	seed: 0
+	token_mode: concat
+	tokenizer_hallucination_ratio: 1.5
+	tokenizer_temp: 2
+2026-03-24 13:32:11,195 - wandb.wandb_agent - INFO - About to run command: /usr/bin/env python  --batch_size=32768 --dataset=photo --device=0 --embedding_dim=128 --num_epoch=150 --num_prompts=12 --outlier_beta=0.3 --peak_lr=0.0005 --pp_k=6 --progregate_alpha=0.2 --rec_loss_weight=5 --seed=0 --token_mode=concat --tokenizer_hallucination_ratio=1.5 --tokenizer_temp=2
+/root/gpufree-data/linziyao/.conda/envs/GGADFormer/bin/python: can't find '__main__' module in ''
+2026-03-24 13:32:16,204 - wandb.wandb_agent - INFO - Running runs: ['koc049r6']
+2026-03-24 13:32:16,204 - wandb.wandb_agent - ERROR - Detected 3 failed runs in the first 60 seconds, shutting down.
+2026-03-24 13:32:16,204 - wandb.wandb_agent - INFO - To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true
+wandb: Terminating and syncing runs. Press ctrl-c to kill.

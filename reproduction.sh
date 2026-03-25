@@ -34,7 +34,7 @@ run_amazon() {
         --rec_loss_weight=1 \
         --ring_R_max=1 \
         --ring_R_min=0.3 \
-        --ring_loss_weight=1 \
+        \
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
@@ -61,7 +61,7 @@ run_reddit() {
         --rec_loss_weight=1 \
         --ring_R_max=1 \
         --ring_R_min=0.3 \
-        --ring_loss_weight=20 \
+        \
         --seed=1 \
         --train_rate=0.05 \
         --warmup_updates=50 \
@@ -87,7 +87,7 @@ run_photo() {
         --rec_loss_weight=1 \
         --ring_R_max=1 \
         --ring_R_min=0.3 \
-        --ring_loss_weight=1 \
+        \
         --seed=2 \
         --train_rate=0.05 \
         --warmup_updates=50 \
@@ -114,7 +114,7 @@ run_elliptic() {
         --rec_loss_weight=1 \
         --ring_R_max=1 \
         --ring_R_min=0.3 \
-        --ring_loss_weight=20 \
+        \
         --seed=0 \
         --train_rate=0.1 \
         --warmup_updates=50 \
@@ -141,7 +141,7 @@ run_tfinance() {
         --rec_loss_weight=1 \
         --ring_R_max=1 \
         --ring_R_min=0.5 \
-        --ring_loss_weight=1 \
+        \
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
@@ -168,7 +168,7 @@ run_tolokers() {
         --rec_loss_weight=0.1 \
         --ring_R_max=0.5 \
         --ring_R_min=0.5 \
-        --ring_loss_weight=20 \
+        \
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \
@@ -195,7 +195,7 @@ run_reddit() {
         --rec_loss_weight=1 \
         --ring_R_max=1 \
         --ring_R_min=0.3 \
-        --ring_loss_weight=20 \
+        \
         --seed=1 \
         --train_rate=0.05 \
         --warmup_updates=50 \
@@ -222,7 +222,7 @@ run_elliptic() {
         --rec_loss_weight=1 \
         --ring_R_max=1 \
         --ring_R_min=0.3 \
-        --ring_loss_weight=20 \
+        \
         --seed=0 \
         --train_rate=0.1 \
         --warmup_updates=50 \
@@ -252,7 +252,7 @@ run_questions() {
         --rec_loss_weight=0.1 \
         --ring_R_max=0.5 \
         --ring_R_min=0.5 \
-        --ring_loss_weight=20 \
+        \
         --seed=0 \
         --train_rate=0.05 \
         --warmup_updates=50 \

@@ -545,7 +545,26 @@ def node_seq_feature(features, pk, nk, sample_batch):
     # print(nodes_features_n.shape)
     # print(nodes_features.shape)
 
-    return nodes_features
+    # 根据 token_mode 进行后处理
+    token_mode = getattr(args, 'token_mode', 'original')
+    
+    if token_mode == 'original':
+        # V1 (Baseline): 保持现状 [N, K+1, D]
+        return nodes_features
+    elif token_mode == 'delta':
+        # V2 (Replace): 替换为Delta向量 [N, K, D]
+        # Delta = X^{(k+1)} - X^{(k)}
+        delta_tokens = nodes_features[:, 1:] - nodes_features[:, :-1]
+        print(f"Delta tokenization: {nodes_features.shape} -> {delta_tokens.shape}")
+        return delta_tokens
+    elif token_mode == 'concat':
+        # V3 (Concat): 拼接原始Token和Delta向量 [N, 2K+1, D]
+        delta_tokens = nodes_features[:, 1:] - nodes_features[:, :-1]
+        concat_tokens = torch.cat([nodes_features, delta_tokens], dim=1)
+        print(f"Concat tokenization: {nodes_features.shape} + {delta_tokens.shape} -> {concat_tokens.shape}")
+        return concat_tokens
+    else:
+        raise ValueError(f"Unknown token_mode: {token_mode}. Must be one of ['original', 'delta', 'concat']")
 
 def preprocess_sample_features(args, features, adj):
     """
@@ -693,7 +712,26 @@ def nagphormer_tokenization(features, adj, args):
         for orth_feat in orthogonalized:
             nodes_features = torch.concat((nodes_features, orth_feat.unsqueeze(1)), dim=1)
     
-    return nodes_features
+    # 根据 token_mode 进行后处理
+    token_mode = getattr(args, 'token_mode', 'original')
+    
+    if token_mode == 'original':
+        # V1 (Baseline): 保持现状 [N, K+1, D]
+        return nodes_features
+    elif token_mode == 'delta':
+        # V2 (Replace): 替换为Delta向量 [N, K, D]
+        # Delta = X^{(k+1)} - X^{(k)}
+        delta_tokens = nodes_features[:, 1:] - nodes_features[:, :-1]
+        print(f"Delta tokenization: {nodes_features.shape} -> {delta_tokens.shape}")
+        return delta_tokens
+    elif token_mode == 'concat':
+        # V3 (Concat): 拼接原始Token和Delta向量 [N, 2K+1, D]
+        delta_tokens = nodes_features[:, 1:] - nodes_features[:, :-1]
+        concat_tokens = torch.cat([nodes_features, delta_tokens], dim=1)
+        print(f"Concat tokenization: {nodes_features.shape} + {delta_tokens.shape} -> {concat_tokens.shape}")
+        return concat_tokens
+    else:
+        raise ValueError(f"Unknown token_mode: {token_mode}. Must be one of ['original', 'delta', 'concat']")
 
 class PolynomialDecayLR(_LRScheduler):
 

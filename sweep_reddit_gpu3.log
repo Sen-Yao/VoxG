@@ -1,0 +1,73 @@
+wandb: Starting wandb agent 🕵️
+2026-03-24 15:00:32,688 - wandb.wandb_agent - INFO - Running runs: []
+2026-03-24 15:00:33,611 - wandb.wandb_agent - INFO - Agent received command: run
+2026-03-24 15:00:33,611 - wandb.wandb_agent - INFO - Agent starting run with config:
+	batch_size: 32768
+	dataset: reddit
+	device: 0
+	embedding_dim: 128
+	mfmgad_loss_weight: 0.1
+	num_epoch: 150
+	num_prompts: 8
+	outlier_beta: 0.3
+	peak_lr: 0.0005
+	pp_k: 6
+	progregate_alpha: 0.2
+	rec_loss_weight: 5
+	seed: 0
+	token_mode: original
+	tokenizer_hallucination_ratio: 1.5
+	tokenizer_temp: 0.5
+	use_mfmgad: True
+2026-03-24 15:00:33,613 - wandb.wandb_agent - INFO - About to run command: /usr/bin/env python  --batch_size=32768 --dataset=reddit --device=0 --embedding_dim=128 --mfmgad_loss_weight=0.1 --num_epoch=150 --num_prompts=8 --outlier_beta=0.3 --peak_lr=0.0005 --pp_k=6 --progregate_alpha=0.2 --rec_loss_weight=5 --seed=0 --token_mode=original --tokenizer_hallucination_ratio=1.5 --tokenizer_temp=0.5 --use_mfmgad=True
+/root/gpufree-data/linziyao/.conda/envs/GGADFormer/bin/python: can't find '__main__' module in ''
+2026-03-24 15:00:38,622 - wandb.wandb_agent - INFO - Running runs: ['iv7r23c5']
+2026-03-24 15:00:38,622 - wandb.wandb_agent - INFO - Cleaning up finished run: iv7r23c5
+2026-03-24 15:00:39,373 - wandb.wandb_agent - INFO - Agent received command: run
+2026-03-24 15:00:39,373 - wandb.wandb_agent - INFO - Agent starting run with config:
+	batch_size: 32768
+	dataset: reddit
+	device: 0
+	embedding_dim: 128
+	mfmgad_loss_weight: 0.1
+	num_epoch: 150
+	num_prompts: 8
+	outlier_beta: 0.3
+	peak_lr: 0.0005
+	pp_k: 6
+	progregate_alpha: 0.2
+	rec_loss_weight: 5
+	seed: 1
+	token_mode: original
+	tokenizer_hallucination_ratio: 1
+	tokenizer_temp: 1
+	use_mfmgad: True
+2026-03-24 15:00:39,375 - wandb.wandb_agent - INFO - About to run command: /usr/bin/env python  --batch_size=32768 --dataset=reddit --device=0 --embedding_dim=128 --mfmgad_loss_weight=0.1 --num_epoch=150 --num_prompts=8 --outlier_beta=0.3 --peak_lr=0.0005 --pp_k=6 --progregate_alpha=0.2 --rec_loss_weight=5 --seed=1 --token_mode=original --tokenizer_hallucination_ratio=1 --tokenizer_temp=1 --use_mfmgad=True
+/root/gpufree-data/linziyao/.conda/envs/GGADFormer/bin/python: can't find '__main__' module in ''
+2026-03-24 15:00:44,384 - wandb.wandb_agent - INFO - Running runs: ['qq2dchju']
+2026-03-24 15:00:44,384 - wandb.wandb_agent - INFO - Cleaning up finished run: qq2dchju
+2026-03-24 15:00:45,318 - wandb.wandb_agent - INFO - Agent received command: run
+2026-03-24 15:00:45,318 - wandb.wandb_agent - INFO - Agent starting run with config:
+	batch_size: 32768
+	dataset: reddit
+	device: 0
+	embedding_dim: 128
+	mfmgad_loss_weight: 0.1
+	num_epoch: 150
+	num_prompts: 8
+	outlier_beta: 0.3
+	peak_lr: 0.0005
+	pp_k: 6
+	progregate_alpha: 0.2
+	rec_loss_weight: 5
+	seed: 2
+	token_mode: original
+	tokenizer_hallucination_ratio: 1
+	tokenizer_temp: 0.5
+	use_mfmgad: True
+2026-03-24 15:00:45,320 - wandb.wandb_agent - INFO - About to run command: /usr/bin/env python  --batch_size=32768 --dataset=reddit --device=0 --embedding_dim=128 --mfmgad_loss_weight=0.1 --num_epoch=150 --num_prompts=8 --outlier_beta=0.3 --peak_lr=0.0005 --pp_k=6 --progregate_alpha=0.2 --rec_loss_weight=5 --seed=2 --token_mode=original --tokenizer_hallucination_ratio=1 --tokenizer_temp=0.5 --use_mfmgad=True
+/root/gpufree-data/linziyao/.conda/envs/GGADFormer/bin/python: can't find '__main__' module in ''
+2026-03-24 15:00:50,329 - wandb.wandb_agent - INFO - Running runs: ['0s204q4q']
+2026-03-24 15:00:50,329 - wandb.wandb_agent - ERROR - Detected 3 failed runs in the first 60 seconds, shutting down.
+2026-03-24 15:00:50,329 - wandb.wandb_agent - INFO - To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true
+wandb: Terminating and syncing runs. Press ctrl-c to kill.

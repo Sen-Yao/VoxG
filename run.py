@@ -575,6 +575,7 @@ if __name__ == "__main__":
     
     # VoxG 正交化实验参数
     parser.add_argument('--orthogonalize_tokens', type=str2bool, default=False, help='[VoxG] Enable orthogonalization in tokenization (Gram-Schmidt)')
+    parser.add_argument('--token_mode', type=str, default='original', choices=['original', 'delta', 'concat'], help='[VoxG] Token mode: original (baseline), delta (replace with delta vectors), concat (concatenate)')
     parser.add_argument('--orthogonal_beta', type=float, default=0.5, help='[VoxG] Soft orthogonalization strength (1.0=hard, 0.0=none)')
     parser.add_argument('--lambda_orthogonal', type=float, default=0.0, help='[VoxG] Orthogonal regularization loss weight (建议：1.0-10.0)')
     parser.add_argument('--use_mfmgad', type=lambda x: x.lower() == 'true', default=True, help='[VoxG] Use MFMGAD module')

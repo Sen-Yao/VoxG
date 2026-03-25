@@ -24,7 +24,6 @@
 --rec_loss_weight=1
 --ring_R_max=1
 --ring_R_min=0.3
---ring_loss_weight=20
 --seed=1
 --train_rate=0.05
 --warmup_updates=50
