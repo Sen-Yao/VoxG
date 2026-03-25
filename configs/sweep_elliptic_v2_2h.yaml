@@ -1,0 +1,59 @@
+# Elliptic Sweep V2 - 2小时精简版
+# 目标: 在 2 小时内找到最佳超参数
+# 预计: 4 GPU 并行, 每 run ~50s, 120 分钟 ≈ 576 runs
+# 
+# ⚠️ 只使用有效参数
+
+program: run.py
+method: grid
+name: elliptic_v2_2h
+
+parameters:
+  # ===== 固定参数 =====
+  dataset:
+    value: elliptic
+  model_type:
+    value: VoxGFormer
+  batch_size:
+    value: 32768
+  num_epoch:
+    value: 100
+  train_rate:
+    value: 0.1
+  warmup_updates:
+    value: 50
+  warmup_epoch:
+    value: 20
+  end_lr:
+    value: 0.0003
+  
+  # ===== 搜索参数（精简版）=====
+  # 基于经验选择最关键的参数
+  
+  # 1. PPR 权重 (最重要)
+  progregate_alpha:
+    values: [0.5, 0.6, 0.7]
+  
+  # 2. 跳数
+  pp_k:
+    values: [5, 6, 7]
+  
+  # 3. 重构损失权重
+  rec_loss_weight:
+    values: [1.0, 2.0]
+  
+  # 4. 学习率
+  peak_lr:
+    values: [0.0003, 0.0005, 0.001]
+  
+  # 5. BCE 损失权重
+  bce_loss_weight:
+    values: [1.0, 2.0]
+  
+  # ===== Seed =====
+  seed:
+    values: [0, 1, 2, 3, 4]
+
+# 总 runs: 3 * 3 * 2 * 3 * 2 * 5 = 540 runs
+# 4 GPU 并行，每 run ~50 秒
+# 预计时间: 540 * 50s / (4 * 60) ≈ 112 分钟 ≈ 1.9 小时
