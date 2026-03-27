@@ -1,14 +1,106 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import random
+import time
 import math
+
+from losses.contrastive_loss import GraphContrastiveLoss
+from check_gpu_memory import print_gpu_memory_usage, print_tensor_memory, clear_gpu_memory
+from models.prompt_tuning import PromptTuning, PromptTuningConfig, freeze_non_prompt_parameters, get_prompt_parameters
+from exphormer_layer import ExphormerLayer, ExphormerEncoder
+
+
+class LoRALinear(nn.Module):
+    """
+    LoRA (Low-Rank Adaptation) wrapper for linear layers.
+    Wraps an existing linear layer and adds low-rank adaptation.
+    
+    h = W_0 x + BA x
+    where B is (out_features, r) and A is (r, in_features)
+    """
+    
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        rank: int = 8,
+        alpha: float = 16.0,
+        dropout: float = 0.0,
+        original_weight: torch.Tensor = None,
+        original_bias: torch.Tensor = None
+    ):
+        super().__init__()
+        
+        self.in_features = in_features
+        self.out_features = out_features
+        self.rank = rank
+        self.alpha = alpha
+        self.scaling = alpha / rank
+        
+        # Main linear layer (frozen when using LoRA)
+        self.weight = nn.Parameter(torch.zeros(out_features, in_features))
+        if original_weight is not None:
+            self.weight.data.copy_(original_weight)
+        if original_bias is not None:
+            self.bias = nn.Parameter(torch.zeros(out_features))
+            self.bias.data.copy_(original_bias)
+        else:
+            self.register_parameter('bias', None)
+        
+        # LoRA low-rank matrices (trainable)
+        self.lora_A = nn.Parameter(torch.zeros(rank, in_features))
+        self.lora_B = nn.Parameter(torch.zeros(out_features, rank))
+        
+        # Dropout for LoRA path
+        self.lora_dropout = nn.Dropout(p=dropout) if dropout > 0 else nn.Identity()
+        
+        # Initialize LoRA weights
+        # A is initialized with Kaiming uniform
+        # B is initialized to zero so initial output equals original
+        nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
+        nn.init.zeros_(self.lora_B)
+        
+        # Track whether weights are merged
+        self.merged = False
+        self.enabled = True
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.merged or not self.enabled:
+            # Use merged weights or original only
+            return F.linear(x, self.weight, self.bias)
+        
+        # Original output
+        result = F.linear(x, self.weight, self.bias)
+        
+        # LoRA addition: (x @ A^T) @ B^T * scaling
+        lora_out = self.lora_dropout(x) @ self.lora_A.T @ self.lora_B.T
+        result = result + lora_out * self.scaling
+        
+        return result
+    
+    def merge_weights(self):
+        """Merge LoRA weights into the base weights for inference."""
+        if not self.merged:
+            delta_w = self.lora_B @ self.lora_A * self.scaling
+            self.weight.data.add_(delta_w)
+            self.merged = True
+    
+    def unmerge_weights(self):
+        """Unmerge LoRA weights from the base weights."""
+        if self.merged:
+            delta_w = self.lora_B @ self.lora_A * self.scaling
+            self.weight.data.sub_(delta_w)
+            self.merged = False
+    
+    def extra_repr(self) -> str:
+        return f'in_features={self.in_features}, out_features={self.out_features}, rank={self.rank}, alpha={self.alpha}'
 
 
 class FeedForwardNetwork(nn.Module):
-    """前馈神经网络层"""
-    
     def __init__(self, hidden_size, ffn_size, dropout_rate):
         super(FeedForwardNetwork, self).__init__()
+
         self.layer1 = nn.Linear(hidden_size, ffn_size)
         self.gelu = nn.GELU()
         self.layer2 = nn.Linear(ffn_size, hidden_size)
@@ -21,47 +113,83 @@ class FeedForwardNetwork(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    """多头注意力机制"""
-    
-    def __init__(self, hidden_size, attention_dropout_rate, num_heads):
+    def __init__(self, hidden_size, attention_dropout_rate, num_heads, return_attention_weights=False, 
+                 use_lora=False, lora_rank=8, lora_alpha=16.0, lora_dropout=0.0):
         super(MultiHeadAttention, self).__init__()
-        self.num_heads = num_heads
-        self.head_dim = hidden_size // num_heads
-        self.scale = 1
+        self.return_attention_weights = return_attention_weights
+        self.use_lora = use_lora
 
-        self.linear_q = nn.Linear(hidden_size, num_heads * self.head_dim)
-        self.linear_k = nn.Linear(hidden_size, num_heads * self.head_dim)
-        self.linear_v = nn.Linear(hidden_size, num_heads * self.head_dim)
+        self.num_heads = num_heads
+
+        self.att_size = att_size = hidden_size // num_heads
+        self.scale = att_size ** -0.5
+
+        # Create linear projections
+        if use_lora:
+            # Use LoRA-wrapped linear layers for Q and V
+            self.linear_q = LoRALinear(
+                in_features=hidden_size,
+                out_features=num_heads * att_size,
+                rank=lora_rank,
+                alpha=lora_alpha,
+                dropout=lora_dropout
+            )
+            self.linear_k = nn.Linear(hidden_size, num_heads * att_size)  # K remains standard
+            self.linear_v = LoRALinear(
+                in_features=hidden_size,
+                out_features=num_heads * att_size,
+                rank=lora_rank,
+                alpha=lora_alpha,
+                dropout=lora_dropout
+            )
+        else:
+            self.linear_q = nn.Linear(hidden_size, num_heads * att_size)
+            self.linear_k = nn.Linear(hidden_size, num_heads * att_size)
+            self.linear_v = nn.Linear(hidden_size, num_heads * att_size)
+        
         self.att_dropout = nn.Dropout(attention_dropout_rate)
-        self.output_layer = nn.Linear(num_heads * self.head_dim, hidden_size)
+        self.output_layer = nn.Linear(num_heads * att_size, hidden_size)
 
     def forward(self, q, k, v, attn_bias=None):
         orig_q_size = q.size()
+
+        d_k = self.att_size
+        d_v = self.att_size
         batch_size = q.size(0)
 
-        # 线性投影并重塑为多头形式
-        q = self.linear_q(q).view(batch_size, -1, self.num_heads, self.head_dim)
-        k = self.linear_k(k).view(batch_size, -1, self.num_heads, self.head_dim)
-        v = self.linear_v(v).view(batch_size, -1, self.num_heads, self.head_dim)
+        # head_i = Attention(Q(W^Q)_i, K(W^K)_i, V(W^V)_i)
+        q = self.linear_q(q).view(batch_size, -1, self.num_heads, d_k)
+        k = self.linear_k(k).view(batch_size, -1, self.num_heads, d_k)
+        v = self.linear_v(v).view(batch_size, -1, self.num_heads, d_v)
 
-        # 转置以适应注意力计算: [batch, heads, seq_len, head_dim]
-        q = q.transpose(1, 2)
-        v = v.transpose(1, 2)
-        k = k.transpose(1, 2).transpose(2, 3)
+        q = q.transpose(1, 2)                  # [b, h, q_len, d_k]
+        k = k.transpose(1, 2)                  # [b, h, k_len, d_k]
+        v = v.transpose(1, 2)                  # [b, h, v_len, d_v]
 
-        # 缩放点积注意力
-        q = q * self.scale
-        x = torch.matmul(q, k)
-        if attn_bias is not None:
-            x = x + attn_bias
+        if not self.return_attention_weights:
+            # Use Flash Attention via PyTorch SDPA for speed and memory efficiency
+            attn_mask = attn_bias
+            x = torch.nn.functional.scaled_dot_product_attention(
+                q, k, v,
+                attn_mask=attn_mask,
+                dropout_p=self.att_dropout.p if self.training else 0.0,
+                scale=self.scale
+            )
+            attention_weights = None
+        else:
+            # Compute attention explicitly when we need to return weights
+            k_t = k.transpose(2, 3)  # [b, h, d_k, k_len]
+            q_scaled = q * self.scale
+            attn_scores = torch.matmul(q_scaled, k_t)  # [b, h, q_len, k_len]
+            if attn_bias is not None:
+                attn_scores = attn_scores + attn_bias
+            attention_weights = torch.softmax(attn_scores, dim=3)
+            x = self.att_dropout(attention_weights)
+            x = x.matmul(v)  # [b, h, q_len, attn]
 
-        attention_weights = torch.softmax(x, dim=3)
-        x = self.att_dropout(attention_weights)
-        x = x.matmul(v)
+        x = x.transpose(1, 2).contiguous()  # [b, q_len, h, attn]
+        x = x.view(batch_size, -1, self.num_heads * d_v)
 
-        # 重塑输出
-        x = x.transpose(1, 2).contiguous()
-        x = x.view(batch_size, -1, self.num_heads * self.head_dim)
         x = self.output_layer(x)
 
         assert x.size() == orig_q_size
@@ -69,25 +197,36 @@ class MultiHeadAttention(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    """Transformer 编码器层"""
-    
-    def __init__(self, hidden_size, ffn_size, dropout_rate, attention_dropout_rate, num_heads):
+    def __init__(self, hidden_size, ffn_size, dropout_rate, attention_dropout_rate, num_heads, 
+                 return_attention_weights=False, use_lora=False, lora_rank=8, lora_alpha=16.0, lora_dropout=0.0):
         super(EncoderLayer, self).__init__()
+
         self.self_attention_norm = nn.LayerNorm(hidden_size)
-        self.self_attention = MultiHeadAttention(hidden_size, attention_dropout_rate, num_heads)
+
+        self.self_attention = MultiHeadAttention(
+            hidden_size, attention_dropout_rate, num_heads,
+            return_attention_weights=return_attention_weights,
+            use_lora=use_lora,
+            lora_rank=lora_rank,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout)
+
         self.self_attention_dropout = nn.Dropout(dropout_rate)
+
         self.ffn_norm = nn.LayerNorm(hidden_size)
         self.ffn = FeedForwardNetwork(hidden_size, ffn_size, dropout_rate)
         self.ffn_dropout = nn.Dropout(dropout_rate)
 
+
     def forward(self, x, attn_bias=None):
-        # 自注意力层
+
+
         y = self.self_attention_norm(x)
         y, attention_weights = self.self_attention(y, y, y, attn_bias)
         y = self.self_attention_dropout(y)
         x = x + y
+        # transformer and FFN LayerNorm and related operations
         
-        # 前馈网络层
         y = self.ffn_norm(x)
         y = self.ffn(y)
         y = self.ffn_dropout(y)
@@ -96,522 +235,495 @@ class EncoderLayer(nn.Module):
         return x, attention_weights
 
 
-class VoxGFormer(nn.Module):
+
+
+class ExphormerEncoderLayer(nn.Module):
     """
-    Prompt-based Graph Anomaly Detection 模型
-    
-    核心思想：使用可学习的 Prompt Token 提取图节点的多视角特征，
-    通过对比学习区分正常节点与异常节点。
+    Exphormer-based encoder layer with O(n) sparse attention.
+    Drop-in replacement for EncoderLayer when use_exphormer=True.
     """
-    
-    def __init__(self, input_dim, hidden_dim, activation, args):
-        super(VoxGFormer, self).__init__()
+    def __init__(self, hidden_size, ffn_size, dropout_rate, attention_dropout_rate, num_heads,
+                 return_attention_weights=False, num_virtual_nodes=4, expander_degree=3):
+        super(ExphormerEncoderLayer, self).__init__()
         
+        self.return_attention_weights = return_attention_weights
+        
+        # Exphormer sparse attention layer
+        self.exphormer = ExphormerLayer(
+            hidden_size=hidden_size,
+            ffn_size=ffn_size,
+            num_heads=num_heads,
+            num_virtual_nodes=num_virtual_nodes,
+            expander_degree=expander_degree,
+            dropout=dropout_rate,
+            attention_dropout=attention_dropout_rate,
+            use_local=False,  # No local attention for sequence data (no graph structure)
+            use_expander=True,
+            use_global=True
+        )
+    
+    def forward(self, x, attn_bias=None):
+        """
+        Args:
+            x: [batch_size, seq_len, hidden_size]
+            attn_bias: Optional attention bias (ignored for Exphormer)
+            
+        Returns:
+            x: [batch_size, seq_len, hidden_size]
+            attention_weights: None (Exphormer doesn't return full attention matrix)
+        """
+        x, attention_weights = self.exphormer(x, edge_index=None, return_attention=self.return_attention_weights)
+        return x, attention_weights
+
+class GCN(nn.Module):
+    def __init__(self, in_ft, out_ft, act, bias=True):
+        super(GCN, self).__init__()
+        self.fc = nn.Linear(in_ft, out_ft, bias=False)
+        self.act = nn.PReLU() if act == 'prelu' else act
+        if bias:
+            self.bias = nn.Parameter(torch.FloatTensor(out_ft))
+            self.bias.data.fill_(0.0)
+        else:
+            self.register_parameter('bias', None)
+
+        for m in self.modules():
+            self.weights_init(m)
+
+    def weights_init(self, m):
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_uniform_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0.0)
+
+    def forward(self, seq, adj, sparse=False):
+        seq_fts = self.fc(seq)
+        if sparse:
+            out = torch.unsqueeze(torch.spmm(adj, torch.squeeze(seq_fts, 0)), 0)
+        else:
+            out = torch.bmm(adj, seq_fts)
+        if self.bias is not None:
+            out += self.bias
+
+        return self.act(out)
+
+
+class Discriminator(nn.Module):
+    def __init__(self, n_h, negsamp_round):
+        super(Discriminator, self).__init__()
+        self.f_k = nn.Bilinear(n_h, n_h, 1)
+
+        for m in self.modules():
+            self.weights_init(m)
+
+        self.negsamp_round = negsamp_round
+
+    def weights_init(self, m):
+        if isinstance(m, nn.Bilinear):
+            torch.nn.init.xavier_uniform_(m.weight.data)
+            if m.bias is not None:
+                m.bias.data.fill_(0.0)
+
+    def forward(self, c, h_pl):
+        scs = []
+        # positive
+        scs.append(self.f_k(h_pl, c))
+
+        # negative
+        c_mi = c
+        for _ in range(self.negsamp_round):
+            c_mi = torch.cat((c_mi[-2:-1, :], c_mi[:-1, :]), 0)
+            scs.append(self.f_k(h_pl, c_mi))
+
+        logits = torch.cat(tuple(scs))
+
+        return logits
+
+
+
+class VoxGFormer(nn.Module):
+    def __init__(self, n_in, n_h, activation, args):
+        super(VoxGFormer, self).__init__()
+
+        # Set device
         self.device = torch.device(f'cuda:{args.device}' if torch.cuda.is_available() and args.device >= 0 else 'cpu')
         self.args = args
-        self.input_dim = input_dim
-        self.num_prompts = getattr(args, 'num_prompts', 8)
 
-        # 分类器网络
-        self.classifier = nn.Sequential(
-            nn.Linear(input_dim, input_dim // 2, bias=False),
-            nn.ReLU(),
-            nn.Linear(input_dim // 2, input_dim // 4, bias=False),
-            nn.ReLU(),
-            nn.Linear(input_dim // 4, 1, bias=False)
-        )
+        # LoRA configuration
+        self.use_lora = getattr(args, 'use_lora', False)
+        self.lora_rank = getattr(args, 'lora_rank', 8)
+        self.lora_alpha = getattr(args, 'lora_alpha', 16.0)
+        self.lora_dropout = getattr(args, 'lora_dropout', 0.0)
+        
+        if self.use_lora:
+            print(f"\n=== LoRA Configuration ===")
+            print(f"  rank: {self.lora_rank}")
+            print(f"  alpha: {self.lora_alpha}")
+            print(f"  dropout: {self.lora_dropout}")
+            print(f"  target: Q and V projections")
+            print(f"===========================\n")
 
-        # Graph Transformer 编码器
-        encoder_layers = [
-            EncoderLayer(input_dim, args.GT_ffn_dim, args.GT_dropout, 
-                        args.GT_attention_dropout, args.GT_num_heads)
-            for _ in range(args.GT_num_layers)
-        ]
-        self.encoder_layers = nn.ModuleList(encoder_layers)
-        self.final_layer_norm = nn.LayerNorm(input_dim)
+        # Prompt Tuning configuration
+        self.use_prompt_tuning = getattr(args, "use_prompt_tuning", False)
+        self.num_prompt_tokens = getattr(args, "num_prompt_tokens", 10)
+        self.prompt_init_method = getattr(args, "prompt_init", "random")
+        self.prompt_dropout = getattr(args, "prompt_dropout", 0.0)
+        
+        if self.use_prompt_tuning:
+            print(f"\n=== Prompt Tuning Configuration ===")
+            print(f"  num_tokens: {self.num_prompt_tokens}")
+            print(f"  init_method: {self.prompt_init_method}")
+            print(f"  dropout: {self.prompt_dropout}")
+            print(f"====================================\n")
+            
+            self.prompt_tuning = PromptTuning(
+                num_tokens=self.num_prompt_tokens,
+                hidden_dim=args.embedding_dim,
+                init_method=self.prompt_init_method,
+                dropout=self.prompt_dropout
+            )
+        else:
+            self.prompt_tuning = None
 
-        # 可学习的 Prompt Token
-        self.prompts = nn.Parameter(torch.randn(1, self.num_prompts, input_dim))
+        # Set batch size
+        self.batchsize = getattr(args, 'batchsize', None)
+        
+        self.gcn1 = GCN(args.embedding_dim, args.embedding_dim, activation)
+        self.gcn2 = GCN(args.embedding_dim, args.embedding_dim, activation)
 
-        # 符号注意力的投影层
-        self.sign_query = nn.Linear(input_dim, input_dim)
-        self.sign_key = nn.Linear(input_dim, input_dim)
+        self.fc1 = nn.Linear(n_h, int(n_h / 2), bias=False)
+        self.fc2 = nn.Linear(int(n_h / 2), int(n_h / 4), bias=False)
+        self.fc3 = nn.Linear(int(n_h / 4), 1, bias=False)
+        self.fc4 = nn.Linear(n_h, n_h, bias=False)
+        self.act = nn.ReLU()
 
-        # Token 解码器（用于重构任务）
+        self.n_in = n_in
+
+        # Graph Transformer with optional LoRA or Exphormer
+        self.use_exphormer = getattr(args, 'use_exphormer', False)
+        self.num_virtual_nodes = getattr(args, 'exphormer_virtual_nodes', 4)
+        self.expander_degree = getattr(args, 'exphormer_degree', 3)
+        
+        if self.use_exphormer:
+            print("=== Exphormer Configuration ===")
+            print(f"  virtual_nodes: {self.num_virtual_nodes}")
+            print(f"  expander_degree: {self.expander_degree}")
+            print("  complexity: O(n) sparse attention")
+            print("===============================")
+        
+        encoders = []
+        for i in range(args.GT_num_layers):
+            return_attn = (i == args.GT_num_layers - 1)
+            if self.use_exphormer:
+                # Use Exphormer sparse attention (O(n) complexity)
+                encoders.append(ExphormerEncoderLayer(
+                    args.embedding_dim, args.GT_ffn_dim, args.GT_dropout,
+                    args.GT_attention_dropout, args.GT_num_heads,
+                    return_attention_weights=return_attn,
+                    num_virtual_nodes=self.num_virtual_nodes,
+                    expander_degree=self.expander_degree
+                ))
+            else:
+                # Use standard attention or LoRA
+                encoders.append(EncoderLayer(
+                    args.embedding_dim, args.GT_ffn_dim, args.GT_dropout,
+                    args.GT_attention_dropout, args.GT_num_heads,
+                    return_attention_weights=return_attn,
+                    use_lora=self.use_lora,
+                    lora_rank=self.lora_rank,
+                    lora_alpha=self.lora_alpha,
+                    lora_dropout=self.lora_dropout
+                ))
+        self.layers = nn.ModuleList(encoders)
+        self.final_ln = nn.LayerNorm(args.embedding_dim)
+        self.read_out = nn.Linear(args.embedding_dim, args.embedding_dim)
+
+        self.token_projection = nn.Linear(self.n_in, args.embedding_dim)
+
         self.token_decoder = nn.Sequential(
-            nn.Linear(input_dim, input_dim),
+            nn.Linear(args.embedding_dim, args.embedding_dim),
             nn.ReLU(),
-            nn.Linear(input_dim, self.num_prompts * input_dim)
+            nn.Linear(args.embedding_dim, (args.pp_k+1) * self.n_in)
         )
 
-        # 重构误差投影层
-        self.recon_error_proj = nn.Sequential(
-            nn.Linear(self.num_prompts * input_dim, input_dim),
+        # Reconstruction loss
+        self.recon_loss_fn = nn.MSELoss()
+
+        # Projection layer for reconstruction error
+        self.reconstruction_proj = nn.Sequential(
+            nn.Linear((args.pp_k+1) * n_in, args.embedding_dim),
             nn.ReLU(),
-            nn.Linear(input_dim, input_dim)
+            nn.Linear(args.embedding_dim, args.embedding_dim)
         )
 
-        # LayerNorm
-        self.prompt_layer_norm = nn.LayerNorm(input_dim)
-
-        # CLS Token
-        self.cls_token = nn.Parameter(torch.randn(1, 1, input_dim))
-
+        # Move model to device
         self.to(self.device)
 
-    def extract_prompt_features(self, node_tokens, base_temp=None, high_temp=None, temp_per_sample=None):
-        """
-        使用 Prompt Token 提取节点特征的多视角表示
-        
-        Args:
-            node_tokens: 节点特征序列 [batch_size, num_hops, input_dim]
-            base_temp: 基础温度参数
-            high_temp: 对部分 token 使用的高温参数（用于伪异常生成）
-            temp_per_sample: 每个样本的温度倍数 [batch_size]
-        
-        Returns:
-            prompt_features: 提取的多视角特征 [batch_size, num_prompts, input_dim]
-            attn_weights: 注意力权重 [batch_size, num_prompts, num_hops]
-        """
-        if base_temp is None:
-            base_temp = self.args.tokenizer_temp
-            
-        batch_size = node_tokens.size(0)
-        num_hops = node_tokens.size(1)
+        # Freeze non-LoRA/Prompt Tuning parameters if using LoRA or Prompt Tuning
+        if self.use_lora or self.use_prompt_tuning:
+            self._freeze_non_peft_parameters()
+            self._print_parameter_stats()
 
-        # 扩展 Prompt 以匹配 batch size
-        queries = self.prompts.expand(batch_size, -1, -1)  # [batch_size, num_prompts, input_dim]
-        keys = node_tokens
-        values = node_tokens
-
-        # 计算幅值注意力分数
-        score_mag = torch.matmul(queries, keys.transpose(-1, -2)) / math.sqrt(self.input_dim)
+        # Contrastive learning module
+        self.use_contrastive = getattr(args, 'use_contrastive', False)
+        if self.use_contrastive:
+            self.contrastive_loss_fn = GraphContrastiveLoss(
+                hidden_dim=args.embedding_dim,
+                temperature=getattr(args, 'contrastive_temp', 0.1),
+                aug_ratio=getattr(args, 'contrastive_aug_ratio', 0.2)
+            ).to(self.device)
+        else:
+            self.contrastive_loss_fn = None
+    
+    def _freeze_non_lora_parameters(self):
+        """Freeze all parameters except LoRA parameters."""
+        frozen_count = 0
+        trainable_count = 0
         
-        # 计算方向注意力分数
-        score_sign = torch.matmul(self.sign_query(queries), self.sign_key(keys).transpose(-1, -2))
-        
-        # 处理温度参数
-        if high_temp is not None or temp_per_sample is not None:
-            # 部分升温模式：前 num_hops//2 个 token 使用高温
-            partial_idx = (num_hops - 1) // 2
-            
-            if temp_per_sample is not None:
-                # 每个样本使用不同温度
-                temp_multiplier = temp_per_sample.view(batch_size, 1, 1)
-                temp_mask = torch.ones(batch_size, self.num_prompts, num_hops, device=node_tokens.device)
-                temp_mask = temp_mask * base_temp * temp_multiplier
-                
-                if partial_idx > 0 and high_temp is not None:
-                    high_temp_values = high_temp * temp_multiplier
-                    temp_mask[:, :, 1:partial_idx+1] = high_temp_values.expand(-1, self.num_prompts, partial_idx)
+        for name, param in self.named_parameters():
+            if 'lora_A' in name or 'lora_B' in name:
+                param.requires_grad = True
+                trainable_count += param.numel()
             else:
-                # 所有样本使用相同温度
-                temp_mask = torch.ones(batch_size, self.num_prompts, num_hops, device=node_tokens.device)
-                temp_mask = temp_mask * base_temp
-                if partial_idx > 0 and high_temp is not None:
-                    temp_mask[:, :, 1:partial_idx+1] = high_temp
-            
-            magnitude = F.softmax(score_mag / temp_mask, dim=-1)
-            sign = torch.tanh(score_sign / temp_mask)
-        else:
-            # 标准模式：所有 token 使用相同温度
-            magnitude = F.softmax(score_mag / base_temp, dim=-1)
-            sign = torch.tanh(score_sign / base_temp)
+                param.requires_grad = False
+                frozen_count += param.numel()
+        
+        print(f"LoRA Mode: Frozen {frozen_count:,} params, trainable {trainable_count:,} params")
+    
+    def _freeze_non_peft_parameters(self):
+        """Freeze all parameters except LoRA and Prompt Tuning parameters."""
+        frozen_count = 0
+        trainable_count = 0
+        
+        for name, param in self.named_parameters():
+            if 'lora_A' in name or 'lora_B' in name or 'soft_prompts' in name or 'prompt_tuning' in name:
+                param.requires_grad = True
+                trainable_count += param.numel()
+            else:
+                param.requires_grad = False
+                frozen_count += param.numel()
+        
+        mode = []
+        if self.use_lora:
+            mode.append("LoRA")
+        if self.use_prompt_tuning:
+            mode.append("Prompt Tuning")
+        mode_str = " + ".join(mode)
+        print(f"{mode_str} Mode: Frozen {frozen_count:,} params, trainable {trainable_count:,} params")
+    
+    def _print_parameter_stats(self):
+        """Print detailed parameter statistics."""
+        total_params = 0
+        trainable_params = 0
+        lora_params = 0
+        
+        for name, param in self.named_parameters():
+            total_params += param.numel()
+            if param.requires_grad:
+                trainable_params += param.numel()
+            if 'lora_' in name:
+                lora_params += param.numel()
+        
+        print(f"\n=== Model Parameter Statistics ===")
+        print(f"  Total parameters: {total_params:,}")
+        print(f"  Trainable parameters: {trainable_params:,}")
+        print(f"  LoRA parameters: {lora_params:,}")
+        if total_params > 0:
+            print(f"  Trainable ratio: {100*trainable_params/total_params:.2f}%")
+        print(f"=================================\n")
+    
+    def get_lora_parameters(self):
+        """Get only LoRA parameters for optimizer."""
+        return [p for n, p in self.named_parameters() if 'lora_A' in n or 'lora_B' in n]
+    
+    def get_prompt_parameters(self):
+        """Get only Prompt Tuning parameters for optimizer."""
+        return [p for n, p in self.named_parameters() if 'soft_prompts' in n or 'prompt_tuning' in n]
+    
+    def get_peft_parameters(self):
+        """Get all PEFT parameters (LoRA + Prompt Tuning) for optimizer."""
+        return [p for n, p in self.named_parameters() 
+                if 'lora_A' in n or 'lora_B' in n or 'soft_prompts' in n or 'prompt_tuning' in n]
+    
+    def merge_lora_weights(self):
+        """Merge LoRA weights into base weights for inference."""
+        for module in self.modules():
+            if isinstance(module, LoRALinear):
+                module.merge_weights()
+    
+    def unmerge_lora_weights(self):
+        """Unmerge LoRA weights from base weights."""
+        for module in self.modules():
+            if isinstance(module, LoRALinear):
+                module.unmerge_weights()
 
-        # 合并注意力的幅值和方向
-        attn_weights = magnitude * sign
-        prompt_features = torch.matmul(attn_weights, values)
-        prompt_features = self.prompt_layer_norm(prompt_features)
-
-        return prompt_features, attn_weights
-
-    def compute_orthogonal_loss(self, attn_weights):
+    def _get_cosine_pe(self, seq_len, embed_dim, device):
         """
-        计算正交损失，确保不同 Prompt 学习到不同的特征
-        
-        Args:
-            attn_weights: 注意力权重 [batch_size, num_prompts, num_hops]
-        
-        Returns:
-            ortho_loss: 正交损失值
+        Generate Cosine positional encoding (TransGAD style)
         """
-        # 归一化注意力权重
-        norms = torch.norm(attn_weights, dim=-1, keepdim=True) + 1e-8
-        normalized_weights = attn_weights / norms
+        position = torch.arange(seq_len, device=device).unsqueeze(1).float()
+        div_term = torch.exp(torch.arange(0, embed_dim, 2, device=device).float() * 
+                            (-math.log(10000.0) / embed_dim))
+        
+        pe = torch.zeros(seq_len, embed_dim, device=device)
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        
+        return pe
 
-        # 计算不同 Prompt 之间的余弦相似度
-        cos_sim = torch.matmul(normalized_weights, normalized_weights.transpose(-1, -2))
-
-        # 排除对角线，计算非对角线元素的绝对值均值
-        mask = ~torch.eye(self.num_prompts, dtype=torch.bool, device=attn_weights.device)
-        ortho_loss = cos_sim[:, mask].abs().mean()
-
-        return ortho_loss
-
-    def encode_with_cls_token(self, tokens):
+    def TransformerEncoder(self, tokens):
         """
-        使用 CLS Token 编码特征序列
-        
-        Args:
-            tokens: 特征序列 [batch_size, num_prompts, input_dim]
-        
-        Returns:
-            cls_output: CLS Token 的编码结果 [1, batch_size, input_dim]
+        Inputs:
+            - tokens: Input node token sequence [batch_size, pp_k+1, feature_dim]
+        Outputs:
+            - emb: Encoded output [1, batch_size, embedding_dim]
         """
-        batch_size = tokens.size(0)
+        emb = self.token_projection(tokens)
         
-        # 拼接 CLS Token
-        cls_tokens = self.cls_token.expand(batch_size, -1, -1)
-        tokens = torch.cat([cls_tokens, tokens], dim=1)
+        # Apply Prompt Tuning: prepend soft prompts to the sequence
+        num_prompt_tokens = 0
+        if self.use_prompt_tuning and self.prompt_tuning is not None:
+            emb = self.prompt_tuning(emb)
+            num_prompt_tokens = self.prompt_tuning.num_tokens
         
-        # 通过 Transformer 编码器层
-        for layer in self.encoder_layers:
-            tokens, _ = layer(tokens)
+        # Add Cosine positional encoding
+        if getattr(self.args, 'use_cosine_pe', True):
+            seq_len = emb.size(1)
+            pe = self._get_cosine_pe(seq_len, emb.size(-1), emb.device)
+            emb = emb + pe.unsqueeze(0)  # broadcast to batch dimension
         
-        # 应用最终 LayerNorm
-        tokens = self.final_layer_norm(tokens)
+        for i, l in enumerate(self.layers):
+            emb, current_attention_weights = self.layers[i](emb)
+            if i == len(self.layers) - 1: # Get attention from last layer
+                attention_weights = current_attention_weights
+                # Aggregate multi-head attention
+                agg_attention_weights = torch.mean(attention_weights, dim=1)
         
-        # 提取 CLS Token 作为输出
-        cls_output = tokens[:, 0, :].unsqueeze(0)
-        return cls_output
+        emb = self.final_ln(emb)
 
-    def _compute_dominant_prompts_and_centers(self, embeddings, normal_idx, attn_weights):
-        """
-        计算每个节点的主导 Prompt 和每个 Prompt 的中心
+        # Remove prompt outputs before attention-based pooling
+        # attention_weights shape: [batch, num_heads, seq_len, seq_len]
+        # agg_attention_weights: [batch, seq_len, seq_len]
         
-        Args:
-            embeddings: 节点嵌入 [1, num_nodes, input_dim]
-            normal_idx: 正常节点索引
-            attn_weights: 注意力权重 [num_nodes, num_prompts, num_hops]
-        
-        Returns:
-            dominant_all: 所有节点的主导 Prompt 索引
-            dominant_normal: 正常节点的主导 Prompt 索引
-            prompt_centers: 每个 Prompt 的中心向量
-            normal_embeddings_norm: 归一化的正常节点嵌入
-        """
-        # 提取正常节点嵌入
-        normal_embeddings = embeddings[0, normal_idx, :]
-        normal_embeddings_norm = F.normalize(normal_embeddings, p=2, dim=1)
-        
-        # 计算主导 Prompt（注意力权重和最大的 Prompt）
-        attn_sum_all = attn_weights.sum(dim=-1)
-        dominant_all = torch.argmax(attn_sum_all, dim=-1)
-        
-        attn_sum_normal = attn_weights[normal_idx, :, :].sum(dim=-1)
-        dominant_normal = torch.argmax(attn_sum_normal, dim=-1)
-        
-        # 计算每个 Prompt 的中心（基于正常节点）
-        prompt_centers = torch.zeros(self.num_prompts, self.input_dim, device=embeddings.device)
-        for p in range(self.num_prompts):
-            mask = (dominant_normal == p)
-            if mask.sum() >= 1:
-                prompt_centers[p] = normal_embeddings_norm[mask].mean(dim=0).detach()
-        
-        return dominant_all, dominant_normal, prompt_centers, normal_embeddings_norm
+        if num_prompt_tokens > 0:
+            # Remove prompt tokens from the sequence dimension
+            emb = emb[:, num_prompt_tokens:, :]
+            # Adjust attention weights to remove prompt tokens
+            # We want attention from real tokens, so slice the query dimension
+            agg_attention_weights = agg_attention_weights[:, num_prompt_tokens:, :]
+            # Also slice the key dimension to only include real tokens
+            agg_attention_weights = agg_attention_weights[:, :, num_prompt_tokens:]
 
-    def _generate_pseudo_anomalies(self, node_tokens, normal_idx, embeddings, attn_weights, dominant_all):
-        """
-        生成伪异常样本
-        
-        Args:
-            node_tokens: 节点特征序列
-            normal_idx: 用于生成伪异常的正常节点索引
-            embeddings: 节点嵌入
-            attn_weights: 注意力权重
-            dominant_all: 所有节点的主导 Prompt 索引
-        
-        Returns:
-            pseudo_anomaly_embeddings: 伪异常节点嵌入
-        """
-        sample_rate = self.args.sample_rate
-        num_samples = int(len(normal_idx) * sample_rate)
-        
-        # 随机选择正常节点
-        perm = torch.randperm(normal_idx.size(0), device=normal_idx.device)
-        selected_idx = normal_idx[perm[:num_samples]]
-        selected_tokens = node_tokens[selected_idx, :, :]
-        selected_dominant = dominant_all[selected_idx]
-        
-        # 获取温度参数
-        base_temp = getattr(self.args, 'tokenizer_temp', 1.0)
-        hallucination_ratio = getattr(self.args, 'tokenizer_hallucination_ratio', 2.0)
-        distance_scale = getattr(self.args, 'hallucination_temp_distance_scale', 0.0)
-        
-        if distance_scale > 0:
-            # 动态温度模式
-            pseudo_anomaly_embeddings = self._generate_pseudo_anomalies_dynamic_temp(
-                selected_tokens, selected_dominant, embeddings, selected_idx,
-                base_temp, hallucination_ratio, distance_scale
-            )
-        else:
-            # 固定温度模式
-            pseudo_anomaly_embeddings = self._generate_pseudo_anomalies_fixed_temp(
-                selected_tokens, selected_dominant,
-                base_temp, hallucination_ratio
-            )
-        
-        return pseudo_anomaly_embeddings, selected_idx
+        # attention_scores: [N, args.pp_k+1]
+        attention_scores = agg_attention_weights[:, 0, :]
 
-    def _generate_pseudo_anomalies_fixed_temp(self, tokens, dominant_prompts, base_temp, hallucination_ratio):
-        """固定温度模式生成伪异常"""
-        high_temp = base_temp * hallucination_ratio
-        
-        # 正常温度处理
-        normal_features, _ = self.extract_prompt_features(tokens, base_temp)
-        normal_features = normal_features.detach()
-        
-        # 高温处理（部分 token）
-        hallucinated_features, _ = self.extract_prompt_features(tokens, base_temp, high_temp=high_temp)
-        hallucinated_features = hallucinated_features.detach()
-        
-        # 创建掩码：只对主导 Prompt 使用高温特征
-        batch_size, num_prompts, _ = normal_features.shape
-        mask = torch.zeros(batch_size, num_prompts, dtype=torch.bool, device=tokens.device)
-        mask[torch.arange(batch_size), dominant_prompts] = True
-        
-        # 混合特征
-        mixed_features = torch.where(mask.unsqueeze(-1), hallucinated_features, normal_features)
-        
-        # 编码并归一化
-        embeddings = self.encode_with_cls_token(mixed_features)
-        embeddings = F.normalize(embeddings, p=2, dim=-1)
-        
-        return embeddings.squeeze(0)
+        # Pooling based on attention_scores
+        emb = torch.bmm(attention_scores.unsqueeze(1), emb).squeeze(1).unsqueeze(0)
 
-    def _generate_pseudo_anomalies_dynamic_temp(self, tokens, dominant_prompts, embeddings, selected_idx,
-                                                 base_temp, hallucination_ratio, distance_scale):
-        """动态温度模式生成伪异常"""
-        # 计算节点到主导 Prompt 中心的距离
-        _, _, prompt_centers, _ = self._compute_dominant_prompts_and_centers(
-            embeddings, selected_idx, 
-            torch.zeros(embeddings.size(1), self.num_prompts, 1, device=embeddings.device)
-        )
-        
-        node_embeddings = F.normalize(embeddings[0, selected_idx, :], p=2, dim=1)
-        centers = prompt_centers[dominant_prompts]
-        distances = torch.norm(node_embeddings - centers, dim=1)
-        
-        # 归一化距离
-        max_distance = distances.max() if distances.numel() > 0 else 1.0
-        normalized_distances = distances / (max_distance + 1e-8)
-        
-        # 计算动态温度倍数
-        dynamic_ratios = 1.0 + (hallucination_ratio - 1.0) * (1.0 + distance_scale * normalized_distances)
-        
-        # 正常温度处理
-        normal_features, _ = self.extract_prompt_features(tokens, base_temp)
-        normal_features = normal_features.detach()
-        
-        # 动态高温处理
-        high_temp = hallucination_ratio * base_temp
-        hallucinated_features, _ = self.extract_prompt_features(
-            tokens, base_temp, high_temp=high_temp, temp_per_sample=dynamic_ratios
-        )
-        hallucinated_features = hallucinated_features.detach()
-        
-        # 创建掩码并混合
-        batch_size, num_prompts, _ = normal_features.shape
-        mask = torch.zeros(batch_size, num_prompts, dtype=torch.bool, device=tokens.device)
-        mask[torch.arange(batch_size), dominant_prompts] = True
-        
-        mixed_features = torch.where(mask.unsqueeze(-1), hallucinated_features, normal_features)
-        
-        # 编码并归一化
-        embeddings = self.encode_with_cls_token(mixed_features)
-        embeddings = F.normalize(embeddings, p=2, dim=-1)
-        
-        return embeddings.squeeze(0)
+        return emb
 
-    def compute_recon_loss(self, prompt_features, reconstructed_features, normal_embeddings, normal_idx):
-        """
-        计算重构损失
-        
-        Args:
-            prompt_features: Prompt 提取的特征 [num_nodes, num_prompts, input_dim]
-            reconstructed_features: 重构的特征 [num_nodes, num_prompts * input_dim]
-            normal_embeddings: 正常节点嵌入
-            normal_idx: 正常节点索引
-        
-        Returns:
-            recon_loss: 重构损失值
-        """
-        target = prompt_features.view(-1, self.num_prompts * self.input_dim)
-        recon_loss = F.mse_loss(reconstructed_features, target)
-        return recon_loss
+    def forward(self, input_tokens, adj, _, normal_for_train_idx, train_flag, args, sparse=False):
 
-    def compute_uniformity_loss(self, normal_embeddings, dominant_prompts, prompt_centers):
-        """
-        计算 Prompt-aware 均匀性损失
-        
-        Args:
-            normal_embeddings: 归一化的正常节点嵌入 [num_normal, input_dim]
-            dominant_prompts: 正常节点的主导 Prompt 索引 [num_normal]
-            prompt_centers: Prompt 中心向量 [num_prompts, input_dim]
-        
-        Returns:
-            uniformity_loss: 均匀性损失
-        """
-        tau = self.args.GNA_temp
-        lambda_inter = getattr(self.args, 'lambda_inter', 0.1)
-        
-        # 模式内聚合损失
-        intra_loss = self._compute_intra_pattern_loss(normal_embeddings, dominant_prompts, tau)
-        
-        # 模式间分散损失
-        inter_loss = self._compute_inter_pattern_loss(normal_embeddings, prompt_centers, tau)
-        
-        return intra_loss + lambda_inter * inter_loss
+        # input_tokens: (N, args.pp_k+1, d)
+        emb = self.TransformerEncoder(input_tokens)
 
-    def _compute_intra_pattern_loss(self, embeddings, dominant_prompts, tau):
-        """计算同模式节点的聚合损失"""
-        num_nodes = embeddings.size(0)
-        device = embeddings.device
-        
-        intra_loss = torch.tensor(0.0, device=device)
-        valid_count = 0
-        
-        for p in range(self.num_prompts):
-            mask = (dominant_prompts == p)
-            pattern_nodes = torch.where(mask)[0]
-            
-            if pattern_nodes.size(0) < 2:
-                continue
-            
-            pattern_embeddings = embeddings[pattern_nodes, :]
-            similarity = torch.mm(pattern_embeddings, pattern_embeddings.t()) / tau
-            
-            # 排除对角线
-            diag_mask = torch.eye(pattern_nodes.size(0), device=device, dtype=torch.bool)
-            similarity = similarity.masked_fill(diag_mask, float('-inf'))
-            
-            intra_loss = intra_loss + torch.logsumexp(similarity, dim=1).mean()
-            valid_count += 1
-        
-        if valid_count > 0:
-            intra_loss = intra_loss / valid_count
-        
-        return intra_loss
+        # Generate global center point
+        h_mean = torch.mean(emb, dim=1, keepdim=True)
 
-    def _compute_inter_pattern_loss(self, embeddings, prompt_centers, tau):
-        """计算不同模式间的分散损失"""
-        device = embeddings.device
-        
-        # 找有效中心
-        valid_mask = (prompt_centers.norm(dim=1) > 0)
-        valid_indices = torch.where(valid_mask)[0]
-        
-        if valid_indices.size(0) < 2:
-            return torch.tensor(0.0, device=device)
-        
-        valid_centers = F.normalize(prompt_centers[valid_indices, :], p=2, dim=1)
-        similarity = torch.mm(valid_centers, valid_centers.t()) / tau
-        
-        # 取上三角（排除对角线）
-        upper_mask = torch.triu(torch.ones_like(similarity, dtype=torch.bool), diagonal=1)
-        
-        return torch.exp(similarity[upper_mask]).mean()
+        outlier_emb = None
+        emb_combine = None
+        noised_normal_for_generation_emb = None
 
-    def forward(self, input_tokens, adj, _, normal_for_train_idx, train_flag, args, sparse=False, return_attn_weights=False):
-        """
-        前向传播
-        
-        Args:
-            input_tokens: 输入节点特征 [num_nodes, pp_k+1, input_dim]
-            adj: 邻接矩阵（未使用）
-            _: 占位参数
-            normal_for_train_idx: 训练用的正常节点索引
-            train_flag: 是否训练模式
-            args: 参数配置
-            sparse: 是否使用稀疏格式
-            return_attn_weights: 是否返回注意力权重
-        
-        Returns:
-            embeddings: 节点嵌入
-            combined_embeddings: 组合嵌入（训练时）
-            logits: 分类 logits
-            pseudo_anomaly_embeddings: 伪异常嵌入
-            noised_embeddings: 噪声嵌入（未使用）
-            recon_loss: 重构损失
-            ring_loss: 环形损失（未使用）
-            ortho_loss: 正交损失
-            recon_error: 重构误差向量
-            uniformity_loss: 均匀性损失
-            original_prompt_features: 原始 Prompt 特征
-            reconstructed_features: 重构的特征
-            attn_weights: 注意力权重（可选）
-        """
-        # 提取 Prompt 特征
-        prompt_features, attn_weights = self.extract_prompt_features(
-            input_tokens, getattr(self.args, 'tokenizer_temp', 1.0)
-        )
-
-        # 计算正交损失
-        ortho_loss = self.compute_orthogonal_loss(attn_weights)
-
-        # 使用 CLS Token 编码
-        embeddings = self.encode_with_cls_token(prompt_features)
-        embeddings = F.normalize(embeddings, p=2, dim=-1)
-
-        # 初始化输出变量
-        combined_embeddings = None
-        pseudo_anomaly_embeddings = None
-        recon_error = None
-        original_prompt_features = prompt_features
-        reconstructed_features = self.token_decoder(embeddings).squeeze(0)
-
-        uniformity_loss = torch.tensor(0.0, device=embeddings.device)
-        recon_loss = torch.tensor(0.0, device=embeddings.device)
-        ring_loss = torch.tensor(0.0, device=embeddings.device)
-
+        gna_loss = torch.tensor(0.0, device=emb.device)
+        proj_loss = torch.tensor(0.0, device=emb.device)
+        uniformity_loss = torch.tensor(0.0, device=emb.device)
+        loss_ring = torch.tensor(0.0, device=emb.device)
+        con_loss = torch.tensor(0.0, device=emb.device)
+        loss_rec = torch.tensor(0.0, device=emb.device)
         if train_flag:
-            # 训练模式：生成伪异常并计算损失
-            dominant_all, dominant_normal, prompt_centers, normal_embeddings = \
-                self._compute_dominant_prompts_and_centers(embeddings, normal_for_train_idx, attn_weights)
-            
-            # 生成伪异常
-            pseudo_anomaly_embeddings, selected_idx = self._generate_pseudo_anomalies(
-                input_tokens, normal_for_train_idx, embeddings, attn_weights, dominant_all
-            )
-            
-            # 计算重构损失
-            recon_loss = self.compute_recon_loss(
-                prompt_features, reconstructed_features, embeddings, selected_idx
-            )
-            
-            # 计算均匀性损失
-            uniformity_loss = self.compute_uniformity_loss(
-                normal_embeddings, dominant_normal, prompt_centers
-            )
-            
-            # 组合正常节点和伪异常嵌入
-            normal_embeddings = embeddings[:, normal_for_train_idx, :]
-            combined_embeddings = torch.cat([normal_embeddings, pseudo_anomaly_embeddings.unsqueeze(0)], dim=1)
-            combined_embeddings = F.normalize(combined_embeddings, p=2, dim=-1)
-            
-            classifier_input = combined_embeddings
-        else:
-            # 推理模式：计算重构误差
-            target = prompt_features.view(-1, self.num_prompts * self.input_dim)
-            recon_error = self.recon_error_proj(reconstructed_features - target)
-            classifier_input = embeddings
+            # Efficient reshuffling
+            perm = torch.randperm(normal_for_train_idx.size(0), device=normal_for_train_idx.device)
+            normal_for_train_idx = normal_for_train_idx[perm]
+            normal_for_generation_idx = normal_for_train_idx[: int(len(normal_for_train_idx) * args.sample_rate)]            
+            normal_for_generation_emb = emb[:, normal_for_generation_idx, :]
+            # Noise
+            noise = torch.randn(normal_for_generation_emb.size(), device=self.device) * args.var + args.mean
+            noised_normal_for_generation_emb = normal_for_generation_emb + noise
 
-        # 分类
-        logits = self.classifier(classifier_input)
-        embeddings = embeddings.clone()
+            # Reconstruction learning
+            reconstructed_tokens = self.token_decoder(emb).squeeze(0)  # [num_nodes, (args.pp_k+1)*n_in]
+            reconstruction_error = reconstructed_tokens - input_tokens.view(-1, (args.pp_k+1) * self.n_in)
+            # Project reconstruction error to embedding dimension
+            reconstruction_error_proj = self.reconstruction_proj(reconstruction_error[normal_for_generation_idx, :])
 
-        if return_attn_weights:
-            # 适配 VoxGFormer 接口
-            # 返回: emb, emb_combine, logits, outlier_emb, noised_normal_emb, _, con_loss, proj_loss, reconstruction_loss
-            loss_rec = recon_loss
-            noised_normal_emb = torch.zeros_like(pseudo_anomaly_embeddings) if pseudo_anomaly_embeddings is not None else None
-            return (embeddings, combined_embeddings, logits, pseudo_anomaly_embeddings, noised_normal_emb,
-                    noised_normal_emb, uniformity_loss, ortho_loss, recon_loss)
+            # Ablation study:
+            if args.ablation_random_dir:
+                norms = torch.norm(reconstruction_error_proj, p=2, dim=1, keepdim=True)
+                random_vec = torch.randn_like(reconstruction_error_proj)
+                random_dir = torch.nn.functional.normalize(random_vec, p=2, dim=1)
+                reconstruction_error_proj = norms * random_dir
+
+            outlier_emb = normal_for_generation_emb + args.outlier_beta * reconstruction_error_proj
+            outlier_emb = outlier_emb.squeeze(0)
+
+            # Ring alignment loss
+            outlier_to_center_dist = torch.norm(outlier_emb - h_mean.squeeze(0), p=2, dim=1)
+            ring_out_range_loss = torch.relu(args.ring_R_min - outlier_to_center_dist)
+            ring_in_range_loss = torch.relu(outlier_to_center_dist - args.ring_R_max)
+
+            loss_ring = torch.mean(ring_out_range_loss + ring_in_range_loss)
+
+            # Contrastive learning loss
+            loss_contrastive = torch.tensor(0.0, device=emb.device)
+            if self.use_contrastive and self.contrastive_loss_fn is not None:
+                if normal_for_train_idx is not None and len(normal_for_train_idx) > 1:
+                    loss_contrastive = self.contrastive_loss_fn(emb[0, normal_for_train_idx, :])
+            # Re-encode reconstructed tokens
+            reconstructed_tokens_vector = torch.reshape(reconstructed_tokens, (-1, args.pp_k+1, self.n_in))
+            reencoded_emb = self.TransformerEncoder(reconstructed_tokens_vector)[:, normal_for_generation_idx, :].detach().squeeze(0)
+            loss_rec = self.compute_rec_loss(input_tokens, reconstructed_tokens, normal_for_generation_emb, reencoded_emb, normal_for_generation_idx)
+
+            emb_combine = torch.cat((emb[:, normal_for_train_idx, :], torch.unsqueeze(outlier_emb, 0)), 1)
+
+            f_1 = self.fc1(emb_combine)
         else:
-            # 适配 VoxGFormer 接口
-            # 返回: emb, emb_combine, logits, outlier_emb, noised_normal_emb, loss_rec, loss_ring, loss_contrastive
-            loss_rec = recon_loss
-            loss_contrastive = uniformity_loss
-            noised_normal_emb = torch.zeros_like(pseudo_anomaly_embeddings) if pseudo_anomaly_embeddings is not None else None
-            return (embeddings, combined_embeddings, logits, pseudo_anomaly_embeddings, noised_normal_emb,
-                    loss_rec, ring_loss, loss_contrastive)
+            loss_contrastive = torch.tensor(0.0, device=emb.device)
+            f_1 = self.fc1(emb)
+        f_1 = self.act(f_1)
+        f_2 = self.fc2(f_1)
+        f_2 = self.act(f_2)
+        logits = self.fc3(f_2)
+        emb = emb.clone()
+
+        return emb, emb_combine, logits, outlier_emb, noised_normal_for_generation_emb, loss_rec, loss_ring, loss_contrastive
+
+    def compute_rec_loss(self, input_tokens, reconstructed_tokens, normal_for_generation_emb, reencoded_emb, normal_for_generation_idx):
+        """
+        Compute reconstruction loss in token and embedding spaces
+        """
+        token_rec_loss = self.recon_loss_fn(reconstructed_tokens, input_tokens.view(-1, (self.args.pp_k+1) * self.n_in))
+        emb_rec_loss = torch.mean(torch.norm(normal_for_generation_emb.squeeze(0) - reencoded_emb, dim=-1))
+        loss_rec = self.args.lambda_rec_tok * token_rec_loss + self.args.lambda_rec_emb * emb_rec_loss
+        return loss_rec
+
+
+    # InfoNCE uniformity loss
+    def compute_infoNCE_uniformity_loss(self, emb, normal_for_train_idx, args):
+        """
+        Compute InfoNCE uniformity loss to push apart different normal nodes
+        """
+        normal_emb = emb[0, normal_for_train_idx, :]
+        num_normal = normal_emb.size(0)
+        
+        if num_normal < 2:
+            return torch.tensor(0.0, device=emb.device)
+        
+        normal_emb_norm = F.normalize(normal_emb, p=2, dim=1)
+        similarity_matrix = torch.mm(normal_emb_norm, normal_emb_norm.t())
+        similarity_matrix = similarity_matrix / args.GNA_temp
+        
+        mask = torch.eye(num_normal, device=emb.device, dtype=torch.bool)
+        similarity_matrix_masked = similarity_matrix.masked_fill(mask, float('-inf'))
+        log_sum_exp_values = torch.logsumexp(similarity_matrix_masked, dim=1)
+        uniformity_loss = log_sum_exp_values.mean()
+        
+        return uniformity_loss
