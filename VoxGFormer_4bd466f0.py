@@ -174,9 +174,9 @@ class Discriminator(nn.Module):
 
 
 
-class VoxGFormer(nn.Module):
+class GGADFormer(nn.Module):
     def __init__(self, n_in, n_h, activation, args):
-        super(VoxGFormer, self).__init__()
+        super(GGADFormer, self).__init__()
 
         # 设置设备
         self.device = torch.device(f'cuda:{args.device}' if torch.cuda.is_available() and args.device >= 0 else 'cpu')
@@ -351,7 +351,7 @@ class VoxGFormer(nn.Module):
         emb = emb.clone()
 
         # gna_loss = torch.tensor(0.0, device=emb.device)
-        return emb, emb_combine, logits, outlier_emb, noised_normal_for_generation_emb, loss_rec, loss_ring, con_loss
+        return emb, emb_combine, logits, outlier_emb, noised_normal_for_generation_emb, loss_rec, loss_ring
 
     def compute_rec_loss(self, input_tokens, reconstructed_tokens, normal_for_generation_emb, reencoded_emb, normal_for_generation_idx):
         """
