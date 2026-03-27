@@ -1,0 +1,50 @@
+# Photo Quick Sweep - 快速 5-seed 验证
+# 目标：快速找到最佳超参数配置
+
+program: run.py
+method: bayes
+metric:
+  name: AUC.max
+  goal: maximize
+
+parameters:
+  # 固定参数（基于历史最佳）
+  dataset:
+    value: photo
+  model_type:
+    value: VoxGFormer
+  num_epoch:
+    value: 200
+  train_rate:
+    value: 0.05
+  warmup_updates:
+    value: 50
+  end_lr:
+    value: 0.0001
+  ring_R_max:
+    value: 1
+  ring_R_min:
+    value: 0.3
+  rec_loss_weight:
+    value: 1
+  ring_loss_weight:
+    value: 1
+  
+  # 搜索参数（精简版）
+  batch_size:
+    values: [64, 128, 256]
+  
+  peak_lr:
+    values: [0.0003, 0.0005, 0.001]
+  
+  pp_k:
+    values: [4, 5, 6, 7]
+  
+  progregate_alpha:
+    values: [0.1, 0.2, 0.3]
+  
+  seed:
+    values: [0, 1, 2, 3, 4]
+
+# 使用贝叶斯优化，减少运行次数
+# 预计 50-100 runs
