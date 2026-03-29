@@ -1,0 +1,61 @@
+# Elliptic Sweep V1 - 有效参数版本
+# 目标: 找到 Elliptic 数据集最佳超参数
+# 预计时间: ~2小时 (4 GPU 并行)
+# 
+# ⚠️ 已移除无效参数：
+# - lambda_rec_emb (未使用)
+# - lambda_rec_tok (未使用)
+# - ring_loss_weight (ring_loss=0 硬编码)
+# - outlier_beta (未使用)
+
+program: run.py
+method: grid
+name: elliptic_v1_valid_params
+
+parameters:
+  # ===== 固定参数 =====
+  dataset:
+    value: elliptic
+  model_type:
+    value: VoxGFormer
+  batch_size:
+    value: 32768
+  num_epoch:
+    value: 100
+  train_rate:
+    value: 0.1
+  warmup_updates:
+    value: 50
+  warmup_epoch:
+    value: 20
+  
+  # ===== 搜索参数 =====
+  # 1. PPR 权重 (核心参数)
+  progregate_alpha:
+    values: [0.4, 0.5, 0.6, 0.7]
+  
+  # 2. 跳数
+  pp_k:
+    values: [5, 6, 7]
+  
+  # 3. 重构损失权重
+  rec_loss_weight:
+    values: [0.5, 1.0, 2.0]
+  
+  # 4. 学习率
+  peak_lr:
+    values: [0.0003, 0.0005, 0.001]
+  
+  # 5. 正交正则化
+  lambda_orthogonal:
+    values: [0.0, 1.0, 5.0]
+  
+  # ===== Seed =====
+  seed:
+    values: [0, 1, 2, 3, 4]
+
+# 总 runs: 4 * 3 * 3 * 3 * 3 * 5 = 1620 runs
+# 4 GPU 并行，每 run ~50 秒（100 epochs）
+# 预计时间: 1620 * 50s / (4 * 60) ≈ 337 分钟 ≈ 5.6 小时
+# 
+# 如果要控制在 2 小时内，需要减少参数组合

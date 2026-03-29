@@ -1,0 +1,57 @@
+# Photo Sweep V1 - 针对密集图 + 高维稀疏特征优化
+# 核心思路：增大 alpha、减小 pp_k、增大 batch_size
+
+program: run.py
+method: grid
+name: photo_v1_dense_optimized
+
+parameters:
+  # 固定参数
+  dataset:
+    value: photo
+  model_type:
+    value: VoxGFormer
+  num_epoch:
+    value: 200
+  train_rate:
+    value: 0.05
+  warmup_updates:
+    value: 50
+  end_lr:
+    value: 0.0001
+  ring_R_max:
+    value: 1
+  ring_R_min:
+    value: 0.3
+  
+  # ===== 搜索参数 =====
+  # 1. progregate_alpha: 密集图需要更大 alpha
+  progregate_alpha:
+    values: [0.3, 0.4, 0.5, 0.6]
+  
+  # 2. pp_k: 密集图用较小的 k
+  pp_k:
+    values: [3, 4, 5]
+  
+  # 3. batch_size: 高维特征需要更大 batch
+  batch_size:
+    values: [256, 512]
+  
+  # 4. peak_lr: 调整学习率
+  peak_lr:
+    values: [0.0003, 0.0005, 0.001]
+  
+  # 5. rec_loss_weight
+  rec_loss_weight:
+    values: [1.0, 2.0]
+  
+  # 固定 tokenizer 参数
+  token_mode:
+    value: original
+  
+  # Seed
+  seed:
+    values: [0, 1, 2]
+
+# 总 runs: 4 * 3 * 2 * 3 * 2 * 3 = 432 runs
+# 8 GPU 并行，每 run ~2 分钟，预计 ~1.8 小时

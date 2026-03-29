@@ -1,0 +1,52 @@
+# Photo Sweep V2 - 5-seed 验证版
+# 每个配置跑 5 个 seed，确保结果可靠性
+
+program: run.py
+method: grid
+name: photo_v2_5seed
+
+parameters:
+  # 固定参数
+  dataset:
+    value: photo
+  model_type:
+    value: VoxGFormer
+  num_epoch:
+    value: 200
+  train_rate:
+    value: 0.05
+  warmup_updates:
+    value: 50
+  end_lr:
+    value: 0.0001
+  ring_R_max:
+    value: 1
+  ring_R_min:
+    value: 0.3
+  
+  # ===== 搜索参数（精简版）=====
+  progregate_alpha:
+    values: [0.3, 0.4, 0.5]
+  
+  pp_k:
+    values: [4, 5]
+  
+  batch_size:
+    values: [256, 512]
+  
+  peak_lr:
+    values: [0.0003, 0.0005]
+  
+  rec_loss_weight:
+    values: [1.0, 2.0]
+  
+  token_mode:
+    value: original
+  
+  # 5 seed
+  seed:
+    values: [0, 1, 2, 3, 4]
+
+# 总 runs: 3 * 2 * 2 * 2 * 2 * 5 = 240 runs
+# 8 GPU 并行，每 run ~2 分钟，预计 ~1 小时
+# 每个配置 5 seed，共 48 组配置
