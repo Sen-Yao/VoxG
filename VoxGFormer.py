@@ -249,6 +249,8 @@ class VoxGFormer(nn.Module):
         return emb
 
     def forward(self, input_tokens, adj, _, normal_for_train_idx, train_flag, args, sparse=False):
+        # 动态获取 token 数量（支持 concat 模式）
+        num_tokens = input_tokens.shape[1]
 
         # input_tokens: (N, args.pp_k+1, d)
         emb = self.TransformerEncoder(input_tokens)
@@ -287,18 +289,18 @@ class VoxGFormer(nn.Module):
                 self.token_decoder = nn.Sequential(
                     nn.Linear(args.embedding_dim, args.embedding_dim),
                     nn.ReLU(),
-                    nn.Linear(args.embedding_dim, (args.pp_k+1) * actual_input_dim)
+                    nn.Linear(args.embedding_dim, num_tokens * actual_input_dim)
                 ).to(emb.device)
             reconstructed_tokens = self.token_decoder(emb).squeeze(0)
             # 动态获取输入维度（支持 SPSE MVP）
             actual_input_dim = input_tokens.shape[-1]
-            reconstruction_error = reconstructed_tokens - input_tokens.view(-1, (args.pp_k+1) * actual_input_dim)
+            reconstruction_error = reconstructed_tokens - input_tokens.view(-1, num_tokens * actual_input_dim)
             # Project reconstruction error to embedding dimension
             # 延迟初始化 reconstruction_proj（支持 SPSE MVP 动态维度）
             if self.reconstruction_proj is None:
                 actual_input_dim = input_tokens.shape[-1]
                 self.reconstruction_proj = nn.Sequential(
-                    nn.Linear((args.pp_k+1) * actual_input_dim, args.embedding_dim),
+                    nn.Linear(num_tokens * actual_input_dim, args.embedding_dim),
                     nn.ReLU(),
                     nn.Linear(args.embedding_dim, args.embedding_dim)
                 ).to(emb.device)
@@ -334,7 +336,7 @@ class VoxGFormer(nn.Module):
             # 将重构后的 tokens 再编码为 embedding
             # 动态获取输入维度（支持 SPSE MVP）
             actual_input_dim = input_tokens.shape[-1]
-            reconstructed_tokens_vector = torch.reshape(reconstructed_tokens, (-1, args.pp_k+1, actual_input_dim))
+            reconstructed_tokens_vector = torch.reshape(reconstructed_tokens, (-1, num_tokens, actual_input_dim))
             reencoded_emb = self.TransformerEncoder(reconstructed_tokens_vector)[:, normal_for_generation_idx, :].detach().squeeze(0)
             loss_rec = self.compute_rec_loss(input_tokens, reconstructed_tokens, normal_for_generation_emb, reencoded_emb, normal_for_generation_idx)
 
@@ -365,7 +367,7 @@ class VoxGFormer(nn.Module):
         """
         # 动态获取输入维度（支持 SPSE MVP）
         actual_input_dim = input_tokens.shape[-1]
-        token_rec_loss = self.recon_loss_fn(reconstructed_tokens, input_tokens.view(-1, (self.args.pp_k+1) * actual_input_dim))
+        token_rec_loss = self.recon_loss_fn(reconstructed_tokens, input_tokens.view(-1, num_tokens * actual_input_dim))
         # 计算距离
         emb_rec_loss = torch.mean(torch.norm(normal_for_generation_emb.squeeze(0) - reencoded_emb, dim=-1))  # [N]
         loss_rec = self.args.lambda_rec_tok * token_rec_loss + self.args.lambda_rec_emb * emb_rec_loss
