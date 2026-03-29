@@ -13,69 +13,47 @@
 
 ---
 
-## Sweep V1 结果 (2026-03-26)
+## Sweep V3 结果 (2026-03-29)
 
-### 最佳配置
+### 最佳配置 (5-seed 验证)
 
-| 参数 | 值 | 说明 |
+| 参数 | 值 |
+|------|-----|
+| **AUC** | **0.8316±0.0132** |
+| **AP** | 0.5138±0.0329 |
+| progregate_alpha | 0.1 |
+| pp_k | 6 |
+| batch_size | 256 |
+| peak_lr | 0.0003 |
+| rec_loss_weight | 1.0 |
+
+### SOTA 对比
+
+| 方法 | AUC | 差距 |
 |------|-----|------|
-| **AUC** | **0.8966** | 超过 SOTA 0.8960 |
-| progregate_alpha | 0.4 | 密集图用更大 alpha |
-| pp_k | 5 | 密集图用较少层 |
-| batch_size | 1024 | 高维稀疏特征用大 batch |
-| peak_lr | 0.0003 | - |
-| rec_loss_weight | 1.0 | - |
-
-### 复现命令
-
-```bash
-CUDA_VISIBLE_DEVICES=0 python run.py \
-    --dataset=photo \
-    --model_type=VoxGFormer \
-    --progregate_alpha=0.4 \
-    --pp_k=5 \
-    --batch_size=1024 \
-    --peak_lr=0.0003 \
-    --rec_loss_weight=1.0 \
-    --num_epoch=200 \
-    --train_rate=0.05
-```
-
-### 5-seed 验证
-
-```bash
-# 运行 5 seed 验证
-for SEED in 0 1 2 3 4; do
-    CUDA_VISIBLE_DEVICES=0 python run.py \
-        --dataset=photo \
-        --progregate_alpha=0.4 \
-        --pp_k=5 \
-        --batch_size=1024 \
-        --peak_lr=0.0003 \
-        --rec_loss_weight=1.0 \
-        --num_epoch=200 \
-        --train_rate=0.05 \
-        --seed=$SEED
-done
-```
+| **VoxG (V3)** | **0.8316±0.0132** | - |
+| VecGAD | 0.8960 | **-6.4%** ⚠️ |
 
 ---
 
-## SOTA 对比
+## 历史记录 (已更正)
 
-| 方法 | AUC | 设置 |
-|------|-----|------|
-| **VoxG (Sweep V1)** | **0.8966** | 5% 半监督 |
-| VecGAD | 0.8960 | 5% 半监督 |
+### V1 Sweep (2026-03-26)
 
----
+| 指标 | 记录值 | 实际值 |
+|------|--------|--------|
+| 最高 AUC | ~~0.8966~~ | **0.8727** (单 seed) |
+| 数据集 | ~~Photo~~ | Amazon (记录错误) |
 
-## 关键发现
-
-1. **密集图需要更大 alpha**: alpha=0.4 > 0.2
-2. **密集图用较少 pp_k**: pp_k=5 < 6
-3. **高维稀疏特征用大 batch**: batch=1024 > 128
+**注意**: V1 记录存在错误，0.8966 实际来自 Amazon 数据集。
 
 ---
 
-_最后更新: 2026-03-26_
+## 待改进
+
+- [ ] 当前性能距 SOTA 差 6.4%
+- [ ] 需要进一步调参或方法改进
+
+---
+
+_最后更新: 2026-03-29_
