@@ -365,8 +365,9 @@ class VoxGFormer(nn.Module):
         Returns:
             loss_rec: 重构损失值
         """
-        # 动态获取输入维度（支持 SPSE MVP）
+        # 动态获取输入维度和 token 数量（支持 concat 模式）
         actual_input_dim = input_tokens.shape[-1]
+        num_tokens = input_tokens.shape[1]
         token_rec_loss = self.recon_loss_fn(reconstructed_tokens, input_tokens.view(-1, num_tokens * actual_input_dim))
         # 计算距离
         emb_rec_loss = torch.mean(torch.norm(normal_for_generation_emb.squeeze(0) - reencoded_emb, dim=-1))  # [N]
