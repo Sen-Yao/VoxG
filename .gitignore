@@ -9,3 +9,38 @@ sweep_config/
 pretrain/
 logs/
 pytorch_models/
+
+# --- Project cleanup: generated artifacts / migrated research workspace ---
+# Data and generated outputs
+dataset/
+logs/
+wandb/
+GGAD/
+output.log
+figs/
+
+# Nexus research records migrated to openclawvm
+nexus/
+
+# Checkpoints / arrays / binary experiment artifacts
+*.pt
+*.pth
+*.ckpt
+*.npy
+*.npz
+*.pkl
+*.pickle
+
+# Credentials / local secrets
+.env
+.env.*
+.netrc
+*.key
+*.pem
+
+# Manual backup snapshots; use Git history instead
+backups/
+*.bak
+*.backup
+*.current
+
