@@ -1,6 +1,6 @@
 #!/bin/bash
 # VoxG Reproduction Script
-# 基于 MatrixGAD 超参数配置，针对 VecGAD/VoxG 优化
+# 基于 MatrixGAD 超参数配置，针对 VoxG 探索优化
 
 set -e
 
@@ -149,7 +149,7 @@ run_tfinance() {
 }
 
 # ============================================
-# Tolokers 数据集 - 目标 AUC: 0.6509 (VecGAD 论文)
+# Tolokers 数据集 - 目标 AUC: 0.6509 (completed prior work)
 # ============================================
 run_tolokers() {
     echo "=========================================="

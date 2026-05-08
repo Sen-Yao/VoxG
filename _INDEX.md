@@ -23,16 +23,16 @@ VoxG/
 
 ## 🎯 项目目标
 
-**超越 VecGAD/RHO 的图异常检测性能**
+**推进半监督 GAD 的探索性能**
 
 | 数据集 | 目标 AUC | 当前 SOTA |
 |--------|---------|-----------|
-| Amazon | >0.9391 | VecGAD |
-| Reddit | >0.5782 | VecGAD |
-| Photo | >0.8960 | VecGAD |
+| Amazon | >0.9391 | completed prior work |
+| Reddit | >0.5782 | completed prior work |
+| Photo | >0.8960 | completed prior work |
 | Elliptic | >0.8509 | RHO |
-| T-Finance | >0.8988 | VecGAD |
-| Tolokers | >0.6612 | VecGAD |
+| T-Finance | >0.8988 | completed prior work |
+| Tolokers | >0.6612 | completed prior work |
 
 ---
 

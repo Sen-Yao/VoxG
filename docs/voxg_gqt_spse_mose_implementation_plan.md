@@ -10,7 +10,7 @@
 
 ### 1.1 核心思想
 
-**问题**: 当前 VecGAD 的 PPR tokenization 存在严重信息冗余，相邻跳特征相关系数>0.8
+**问题**: 既有方法的 PPR tokenization 存在严重信息冗余，相邻跳特征相关系数>0.8
 
 **解决方案**: 三管齐下
 - **GQT (Graph Quantized Token)**: 层次化离散 token，捕捉多尺度结构
@@ -396,7 +396,7 @@ parser.add_argument('--num_gqt_bins', type=int, default=100, help='GQT 量化 bi
 
 ## 6. 预期性能
 
-| 数据集 | VecGAD 基线 | 预期 VoxG | 提升 |
+| 数据集 | 既有工作基线 | 预期 VoxG | 提升 |
 |--------|------------|----------|------|
 | Amazon | 0.9344 | 0.98-1.00 | +5-7% |
 | Reddit | 0.5782 | 0.62-0.65 | +7-12% |

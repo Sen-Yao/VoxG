@@ -322,7 +322,7 @@ def main():
     print("=" * 70)
     print(f"{'方法':<20} {'AUC':<20}")
     print("-" * 40)
-    print(f"{'VecGAD (SOTA)':<20} {'0.8960':<20}")
+    print(f"{'completed prior work':<20} {'0.8960':<20}")
     print(f"{'concat':<20} {'0.8777 ± 0.038':<20}")
     print(f"{'v3-b1':<20} {'0.8273 ± 0.017':<20}")
     print(f"{'DualStreamVoxG':<20} {f'{mean_auc:.4f} ± {std_auc:.4f}':<20}")

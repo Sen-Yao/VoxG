@@ -36,12 +36,12 @@
 
 | 数据集 | 目标 AUC | SOTA | 来源 |
 |--------|---------|------|------|
-| Photo | 0.8960 | VecGAD | 5% 半监督 |
-| Amazon | 0.9391 | VecGAD | 5% 半监督 |
-| Reddit | 0.5782 | VecGAD | 5% 半监督 |
+| Photo | 0.8960 | completed prior work | 5% 半监督 |
+| Amazon | 0.9391 | completed prior work | 5% 半监督 |
+| Reddit | 0.5782 | completed prior work | 5% 半监督 |
 | Elliptic | 0.8509 | RHO | 10% 半监督 |
-| T-Finance | 0.8988 | VecGAD | 5% 半监督 |
-| Tolokers | 0.6612 | VecGAD | 5% 半监督 |
+| T-Finance | 0.8988 | completed prior work | 5% 半监督 |
+| Tolokers | 0.6612 | completed prior work | 5% 半监督 |
 
 ---
 

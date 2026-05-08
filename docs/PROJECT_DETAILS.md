@@ -6,7 +6,7 @@
 
 ## 1. 项目概述
 
-**项目名称**：VoxG (原名 GGADFormer / VecFormer / VecGAD)
+**项目名称**：VoxG
 
 **核心目标**：设计基于图 Transformer 的半监督图异常检测方法，在主流数据集上达到 SOTA
 

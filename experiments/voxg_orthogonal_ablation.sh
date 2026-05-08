@@ -14,11 +14,11 @@ echo "📍 使用 GPU: $GPU_ID"
 echo ""
 
 # ============================================
-# 实验 1: Amazon 基线（VecGAD 原始配置）
+# 实验 1: Amazon 基线（prior completed-work 配置）
 # ============================================
 run_amazon_baseline() {
     echo "=========================================="
-    echo "📊 实验 1: Amazon 基线（VecGAD 原始）"
+    echo "📊 实验 1: Amazon 基线（prior completed-work）"
     echo "=========================================="
     python run.py \
         --batch_size=1024 \

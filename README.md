@@ -19,7 +19,7 @@ VoxG **完全独立于**以下项目：
 
 | 项目 | 关系 |
 |---|---|
-| `VecGAD` | 独立方法/代码资产，不等同于 VoxG |
+| `VecGAD` | 用户已经完成的既有工作 / 外部成果，不作为 VoxG incubator 的继续开发内容 |
 | `DualRefGAD` | 已拆分为独立活跃项目，不再由 VoxG 承载主开发 |
 | `Nexus` knowledge base | 已迁移到 openclawvm 的 Nexus workspace，不再把 VoxG 内部 `nexus/` 作为主知识库 |
 
@@ -34,6 +34,12 @@ Nexus 研究记录主位置：
 ```text
 /home/openclawvm/.openclaw/workspace/agents/nexus
 ```
+
+## 关于 VecGAD
+
+VecGAD 是用户已经完成的既有工作，不属于 VoxG incubator 的当前探索资产。
+
+VoxG 后续不保留 VecGAD 专属代码、复现脚本或文档；如果需要引用 VecGAD，只作为已完成工作的背景或基线来源，而不是 VoxG 的开发主线。
 
 ## VoxG 中适合保留的内容
 

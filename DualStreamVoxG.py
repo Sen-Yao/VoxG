@@ -12,7 +12,7 @@ DualStreamVoxG - 双流架构 VoxGFormer
 - 融合：门控机制
 
 参考文献：
-- VecGAD: RDV 架构级差异计算
+- prior completed work: RDV-style architectural discrepancy computation
 - GTA: 图 Transformer 注意力机制
 
 作者: Nexus
